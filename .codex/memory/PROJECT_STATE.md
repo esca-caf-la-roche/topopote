@@ -2,7 +2,7 @@
 
 ## Current phase
 
-Phase 2 local implementation in progress: the public topo is stable and a practitioner logbook plus seasonal ranking are implemented but not deployed.
+Phase 2 integration in progress: the practitioner schema and seasonal ranking are deployed to Supabase, while the frontend commit remains local and unpushed.
 
 ## Done
 
@@ -30,18 +30,22 @@ Phase 2 local implementation in progress: the public topo is stable and a practi
 - Validated the current frontend with ESLint, 15 Vitest tests, a production build and public/mobile browser checks at 375 px.
 - Closed the final review findings: anonymous clients cannot read `profils` directly, stale personal requests are discarded, and the final security re-review found no remaining blocker in the local diff.
 - Added an 18-assertion transactional pgTAP matrix covering anon, two practitioners, one administrator, ownership spoofing, public ranking and route-history protection.
+- Applied `add_climber_logbook` and `optimize_profile_policies` to linked project `cxasxpzfeydwnzvpdtkf`; the remote migration history is aligned.
+- Executed the full pgTAP matrix remotely with 18/18 passing assertions and verified that all test users, profiles, zones and ascents were rolled back.
+- Verified the local frontend against the migrated remote schema: public seasons, empty seasonal ranking and anonymous practitioner sign-in view load without console errors.
 
 ## Remaining
 
-- Apply the new migration to a disposable Supabase validation environment and execute the prepared pgTAP anon/practitioner/admin RLS matrix.
 - Validate a real practitioner OTP, authenticated logbook editing and leaderboard refresh end to end.
-- Review the final diff before committing or publishing.
+- Enable hosted email sign-up through the dashboard, then install/confirm the neutral six-digit OTP template.
+- Commit the RLS policy optimization before publishing.
 
 ## Known issues and blockers
 
 - The hosted project is linked and its schema is deployed.
 - Docker/Podman is unavailable, so the migration cannot be tested with local Supabase containers.
 - GitHub Pages secrets are not configured yet.
-- The practitioner migration is only local; the linked-project dry-run listed it but did not parse or apply it.
 - Hosted Supabase email sign-up must be enabled separately; changing `supabase/config.toml` does not prove the remote Auth setting.
-- SQL/RLS and OTP behavior are not yet integration-tested; no publication or production deployment has been performed for phase 2.
+- The public ranking RPC intentionally uses a narrowly scoped `SECURITY DEFINER`; Supabase advisors therefore report the expected anonymous/authenticated executable-function warnings.
+- Password-leak protection remains disabled but is not used by the OTP-only flows.
+- OTP behavior is not yet integration-tested; no frontend publication or production deployment has been performed for phase 2.
