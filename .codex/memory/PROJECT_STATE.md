@@ -2,7 +2,7 @@
 
 ## Current phase
 
-Initial MVP implementation linked to the hosted Topopote Supabase project, with seasonal and zoned route modeling deployed and the first administrator configured.
+Functional MVP linked to the hosted Topopote Supabase project, populated with the current wall topo and undergoing final UX refinement before GitHub publication.
 
 ## Done
 
@@ -18,10 +18,15 @@ Initial MVP implementation linked to the hosted Topopote Supabase project, with 
 - Limited the public topo to the administrator-selected active season.
 - Replaced the administration modal with a dedicated `#admin` page.
 - Removed season dates from the application while retaining nullable legacy database columns for a reversible migration.
+- Added the February 2026 wall references and routes, including half routes, contextual route editing, and grouping by relay or grade.
+- Added editable grade difficulties and public filtering by difficulty.
+- Redesigned the public filters into neo-brutalist semantic groups: zone/relay, grade/difficulty, and color.
+- Added accessible neo-brutalist switches for half-route visibility and relay/grade grouping, with responsive desktop and mobile layouts.
+- Validated the filter redesign with ESLint, the 8 Vitest tests, the production build, browser interaction checks, and responsive inspection down to the project's minimum width.
 
 ## Remaining
 
-- Add real wall reference data and routes.
+- Review and commit the validated filter redesign currently present in `src/App.tsx` and `src/styles.css`.
 - Configure the GitHub repository under `esca-caf-la-roche` and publish GitHub Pages.
 
 ## Known issues and blockers
@@ -30,3 +35,4 @@ Initial MVP implementation linked to the hosted Topopote Supabase project, with 
 - Docker/Podman is unavailable, so the migration cannot be tested with local Supabase containers.
 - GitHub Pages secrets are not configured yet.
 - No Git remote is configured, and the GitHub CLI must be authenticated as `esca-caf-la-roche` before any push.
+- The filter redesign is validated locally but remains uncommitted; no publication or production deployment has been performed for it.

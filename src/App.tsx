@@ -229,60 +229,93 @@ export default function App() {
       {message && <div className={`message message--${message.kind}`}>{message.text}</div>}
 
       <main>
-        <section className="filters" aria-label="Filtres du topo">
-          <FilterSelect
-            label="Zone"
-            value={filters.zoneId}
-            onChange={(zoneId) => setFilters((current) => ({ ...current, zoneId, relayId: '' }))}
-          >
-            {zones.map((zone) => <option key={zone.id} value={zone.id}>{zone.name}</option>)}
-          </FilterSelect>
-          <FilterSelect
-            label="Relais"
-            value={filters.relayId}
-            onChange={(relayId) => setFilters((current) => ({ ...current, relayId }))}
-          >
-            {relays
-              .filter((relay) => !filters.zoneId || relay.zoneId === filters.zoneId)
-              .map((relay) => <option key={relay.id} value={relay.id}>Relais {relay.number}</option>)}
-          </FilterSelect>
-          <ColorFilter
-            colors={colors}
-            value={filters.colorId}
-            onChange={(colorId) => setFilters((current) => ({ ...current, colorId }))}
-          />
-          <FilterSelect
-            label="Cotation"
-            value={filters.gradeId}
-            onChange={(gradeId) => setFilters((current) => ({ ...current, gradeId }))}
-          >
-            {grades.map((grade) => <option key={grade.id} value={grade.id}>{grade.label}</option>)}
-          </FilterSelect>
-          <FilterSelect
-            label="Difficulté"
-            value={filters.difficulty}
-            onChange={(difficulty) => setFilters((current) => ({ ...current, difficulty }))}
-          >
-            {difficulties.map((difficulty) => <option key={difficulty} value={difficulty}>{difficulty}</option>)}
-          </FilterSelect>
-          <label className="checkbox-label filters__checkbox">
-            <input
-              type="checkbox"
+        <section className="filters" aria-labelledby="filters-title">
+          <div className="filters__heading">
+            <div>
+              <p className="filters__eyebrow">Affiner la liste</p>
+              <h2 id="filters-title">Filtres</h2>
+            </div>
+            <button className="filters__reset" type="button" onClick={() => setFilters(emptyFilters)}>
+              Réinitialiser
+            </button>
+          </div>
+
+          <div className="filters__groups">
+            <fieldset className="filter-group">
+              <legend>Zone & relais</legend>
+              <div className="filter-group__fields">
+                <FilterSelect
+                  label="Zone"
+                  value={filters.zoneId}
+                  onChange={(zoneId) => setFilters((current) => ({ ...current, zoneId, relayId: '' }))}
+                >
+                  {zones.map((zone) => <option key={zone.id} value={zone.id}>{zone.name}</option>)}
+                </FilterSelect>
+                <FilterSelect
+                  label="Relais"
+                  value={filters.relayId}
+                  onChange={(relayId) => setFilters((current) => ({ ...current, relayId }))}
+                >
+                  {relays
+                    .filter((relay) => !filters.zoneId || relay.zoneId === filters.zoneId)
+                    .map((relay) => <option key={relay.id} value={relay.id}>Relais {relay.number}</option>)}
+                </FilterSelect>
+              </div>
+            </fieldset>
+
+            <fieldset className="filter-group">
+              <legend>Cotation & difficulté</legend>
+              <div className="filter-group__fields">
+                <FilterSelect
+                  label="Cotation"
+                  value={filters.gradeId}
+                  onChange={(gradeId) => setFilters((current) => ({ ...current, gradeId }))}
+                >
+                  {grades.map((grade) => <option key={grade.id} value={grade.id}>{grade.label}</option>)}
+                </FilterSelect>
+                <FilterSelect
+                  label="Difficulté"
+                  value={filters.difficulty}
+                  onChange={(difficulty) => setFilters((current) => ({ ...current, difficulty }))}
+                >
+                  {difficulties.map((difficulty) => <option key={difficulty} value={difficulty}>{difficulty}</option>)}
+                </FilterSelect>
+              </div>
+            </fieldset>
+
+            <fieldset className="filter-group filter-group--color">
+              <legend>Couleur</legend>
+              <ColorFilter
+                colors={colors}
+                value={filters.colorId}
+                onChange={(colorId) => setFilters((current) => ({ ...current, colorId }))}
+                hideLabel
+              />
+            </fieldset>
+          </div>
+
+          <div className="display-options" aria-label="Préférences d’affichage">
+            <p className="display-options__title">Affichage</p>
+            <NeoSwitch
               checked={filters.showHalfRoutes}
-              onChange={(event) => setFilters((current) => ({ ...current, showHalfRoutes: event.target.checked }))}
+              label="Afficher les ½ voies"
+              onChange={(showHalfRoutes) => setFilters((current) => ({ ...current, showHalfRoutes }))}
             />
-            <span>Afficher les ½ voies</span>
-          </label>
-          <label>
-            <span>Afficher par</span>
-            <select value={routeSort} onChange={(event) => setRouteSort(event.target.value as RouteSort)}>
-              <option value="relay">Relais</option>
-              <option value="grade">Cotation</option>
-            </select>
-          </label>
-          <button className="button button--light" type="button" onClick={() => setFilters(emptyFilters)}>
-            Tout afficher
-          </button>
+            <div className="sort-switch">
+              <span className="sort-switch__label">Classer par</span>
+              <div className="sort-switch__control">
+                <span className={routeSort === 'relay' ? 'is-active' : ''}>Relais</span>
+                <NeoSwitch
+                  checked={routeSort === 'grade'}
+                  label="Classer par cotation"
+                  onChange={(byGrade) => setRouteSort(byGrade ? 'grade' : 'relay')}
+                  compact
+                  hideLabel
+                />
+                <span className={routeSort === 'grade' ? 'is-active' : ''}>Cotation</span>
+              </div>
+            </div>
+          </div>
         </section>
 
         <section aria-labelledby="routes-title">
@@ -431,6 +464,36 @@ function RouteCard({ route }: { route: Route }) {
   )
 }
 
+function NeoSwitch({
+  checked,
+  label,
+  onChange,
+  compact = false,
+  hideLabel = false,
+}: {
+  checked: boolean
+  label: string
+  onChange: (checked: boolean) => void
+  compact?: boolean
+  hideLabel?: boolean
+}) {
+  return (
+    <label className={`neo-switch ${compact ? 'neo-switch--compact' : ''}`}>
+      {!hideLabel && <span className="neo-switch__label">{label}</span>}
+      <input
+        type="checkbox"
+        role="switch"
+        aria-label={label}
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+      />
+      <span className="neo-switch__track" aria-hidden="true">
+        <span className="neo-switch__thumb" />
+      </span>
+    </label>
+  )
+}
+
 function FilterSelect({
   label,
   value,
@@ -455,10 +518,11 @@ function FilterSelect({
   )
 }
 
-function ColorFilter({ colors, value, onChange }: {
+function ColorFilter({ colors, value, onChange, hideLabel = false }: {
   colors: Color[]
   value: string
   onChange: (value: string) => void
+  hideLabel?: boolean
 }) {
   const detailsRef = useRef<HTMLDetailsElement>(null)
   const selectedColor = colors.find((color) => color.id === value) ?? null
@@ -480,7 +544,7 @@ function ColorFilter({ colors, value, onChange }: {
 
   return (
     <div className="color-filter">
-      <span>Couleur</span>
+      {!hideLabel && <span>Couleur</span>}
       <details ref={detailsRef} className="color-filter__dropdown">
         <summary aria-label={selectedColor ? `Couleur sélectionnée : ${selectedColor.name}` : 'Toutes les couleurs'}>
           <span

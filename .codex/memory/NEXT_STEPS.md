@@ -1,6 +1,15 @@
 # Next Steps
 
-1. Configure custom SMTP if required, then the OTP-only email template and first admin.
-2. Enter the first season, zones, relays, colors, grades, and routes.
-3. Configure GitHub Pages secrets and publish the site.
-4. Validate the real admin OTP flow and write operations in a browser.
+## Immediate (next session)
+
+- [ ] Review and commit the validated filter redesign in `src/App.tsx` and `src/styles.css`.
+- [ ] Configure the Git remote under `esca-caf-la-roche` and verify the GitHub CLI account before pushing.
+
+## Short Term
+
+- [ ] Configure the GitHub Pages secrets, push `main`, and verify the deployment workflow and public site separately.
+- [ ] Validate the real administrator OTP flow and protected write operations on the published site.
+
+## Backlog
+
+- [ ] Plan phase two: public user accounts, dated climbing sessions, route achievements, and dashboard views.

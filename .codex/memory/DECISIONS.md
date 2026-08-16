@@ -19,3 +19,10 @@
 - Attach each relay to an ordered zone; zones describe stable physical wall sections.
 - Use a dedicated `#admin` page instead of a modal so the static GitHub Pages deployment needs no server-side route rewriting.
 - Publish the repository only under the GitHub owner `esca-caf-la-roche`, never under `JeanFi675`.
+
+## Session decisions
+
+| Decision | Rationale | Date |
+|----------|-----------|------|
+| Group public filters into zone/relay, grade/difficulty, and color frames, then separate display preferences | Match the user's mental model, expose the real dependency between zone and relay, and keep filtering distinct from grouping and reset actions | 2026-08-16 |
+| Use an accessible reusable neo-brutalist switch for half routes and relay/grade grouping | Preserve the visual language while keeping keyboard navigation and explicit switch semantics | 2026-08-16 |
