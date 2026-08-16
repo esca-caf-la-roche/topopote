@@ -7,8 +7,6 @@ export type Zone = {
 export type Season = {
   id: string
   name: string
-  startDate: string
-  endDate: string | null
   active: boolean
 }
 
@@ -44,7 +42,6 @@ export type Route = {
 }
 
 export type RouteFilters = {
-  seasonId: string
   zoneId: string
   relayId: string
   colorId: string

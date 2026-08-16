@@ -24,7 +24,7 @@ export default function App() {
   const [message, setMessage] = useState<Message>(null)
   const [user, setUser] = useState<User | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
-  const [showAdmin, setShowAdmin] = useState(false)
+  const [showAdmin, setShowAdmin] = useState(() => window.location.hash === '#admin')
 
   const loadTopo = useCallback(async () => {
     if (!supabase) return
@@ -34,9 +34,9 @@ export default function App() {
       supabase
         .from('voies')
         .select(
-          'id, saison_id, relais_id, couleur_id, cotation_id, saison:saisons(id, nom, date_debut, date_fin, active), relais:relais(id, numero, zone_id, zone:zones(id, nom, ordre)), couleur:couleurs(id, nom, hex), cotation:cotations(id, libelle, rang)',
+          'id, saison_id, relais_id, couleur_id, cotation_id, saison:saisons(id, nom, active), relais:relais(id, numero, zone_id, zone:zones(id, nom, ordre)), couleur:couleurs(id, nom, hex), cotation:cotations(id, libelle, rang)',
         ),
-      supabase.from('saisons').select('id, nom, date_debut, date_fin, active').order('date_debut', { ascending: false }),
+      supabase.from('saisons').select('id, nom, active').order('active', { ascending: false }).order('created_at', { ascending: false }),
       supabase.from('zones').select('id, nom, ordre').order('ordre'),
       supabase.from('relais').select('id, numero, zone_id, zone:zones(id, nom, ordre)').order('numero'),
       supabase.from('couleurs').select('id, nom, hex').order('nom'),
@@ -63,7 +63,7 @@ export default function App() {
         relayId: row.relais_id,
         colorId: row.couleur_id,
         gradeId: row.cotation_id,
-        season: { id: season.id, name: season.nom, startDate: season.date_debut, endDate: season.date_fin, active: season.active },
+        season: { id: season.id, name: season.nom, active: season.active },
         relay: {
           id: relay.id,
           number: relay.numero,
@@ -76,7 +76,7 @@ export default function App() {
     })
 
     setRoutes(mappedRoutes)
-    const mappedSeasons = (seasonsResult.data ?? []).map((row) => ({ id: row.id, name: row.nom, startDate: row.date_debut, endDate: row.date_fin, active: row.active }))
+    const mappedSeasons = (seasonsResult.data ?? []).map((row) => ({ id: row.id, name: row.nom, active: row.active }))
     setSeasons(mappedSeasons)
     setZones((zonesResult.data ?? []).map((row) => ({ id: row.id, name: row.nom, order: row.ordre })))
     setRelays((relaysResult.data ?? []).map((row) => {
@@ -94,10 +94,6 @@ export default function App() {
     setGrades(
       (gradesResult.data ?? []).map((row) => ({ id: row.id, label: row.libelle, rank: row.rang })),
     )
-    setFilters((current) => ({
-      ...current,
-      seasonId: current.seasonId || mappedSeasons.find((season) => season.active)?.id || mappedSeasons[0]?.id || '',
-    }))
     setLoading(false)
   }, [])
 
@@ -127,7 +123,36 @@ export default function App() {
     return () => data.subscription.unsubscribe()
   }, [loadTopo, refreshAdmin])
 
-  const visibleRoutes = useMemo(() => filterRoutes(routes, filters), [routes, filters])
+  useEffect(() => {
+    const updatePage = () => setShowAdmin(window.location.hash === '#admin')
+    window.addEventListener('hashchange', updatePage)
+    return () => window.removeEventListener('hashchange', updatePage)
+  }, [])
+
+  const activeSeasonId = seasons.find((season) => season.active)?.id ?? null
+  const visibleRoutes = useMemo(
+    () => filterRoutes(routes, filters, activeSeasonId),
+    [routes, filters, activeSeasonId],
+  )
+
+  if (showAdmin) {
+    return (
+      <AdminPage
+        user={user}
+        isAdmin={isAdmin}
+        seasons={seasons}
+        zones={zones}
+        relays={relays}
+        colors={colors}
+        grades={grades}
+        routes={routes}
+        message={message}
+        onClose={() => { window.location.hash = '' }}
+        onChanged={loadTopo}
+        onMessage={setMessage}
+      />
+    )
+  }
 
   return (
     <div className="site-shell">
@@ -136,9 +161,9 @@ export default function App() {
           <p className="eyebrow">Mur d’escalade · Saint-Pierre-en-Faucigny</p>
           <h1>topopote</h1>
           <p className="hero-tagline">Le topo sans prise de tête.</p>
-          <p className="intro">Trouve une voie par saison, zone, relais, couleur ou cotation.</p>
+          <p className="intro">Trouve une voie par zone, relais, couleur ou cotation.</p>
         </div>
-        <button className="button button--dark" type="button" onClick={() => setShowAdmin(true)}>
+        <button className="button button--dark" type="button" onClick={() => { window.location.hash = 'admin' }}>
           {isAdmin ? 'Gérer le topo' : 'Espace admin'}
         </button>
       </header>
@@ -153,14 +178,6 @@ export default function App() {
 
       <main>
         <section className="filters" aria-label="Filtres du topo">
-          <FilterSelect
-            label="Saison"
-            value={filters.seasonId}
-            onChange={(seasonId) => setFilters((current) => ({ ...current, seasonId }))}
-            allLabel="Toutes les saisons"
-          >
-            {seasons.map((season) => <option key={season.id} value={season.id}>{season.name}{season.active ? ' · actuelle' : ''}</option>)}
-          </FilterSelect>
           <FilterSelect
             label="Zone"
             value={filters.zoneId}
@@ -230,21 +247,6 @@ export default function App() {
         </section>
       </main>
 
-      {showAdmin && (
-        <AdminPanel
-          user={user}
-          isAdmin={isAdmin}
-          seasons={seasons}
-          zones={zones}
-          relays={relays}
-          colors={colors}
-          grades={grades}
-          routes={routes}
-          onClose={() => setShowAdmin(false)}
-          onChanged={loadTopo}
-          onMessage={setMessage}
-        />
-      )}
     </div>
   )
 }
@@ -273,7 +275,7 @@ function FilterSelect({
   )
 }
 
-function AdminPanel({
+function AdminPage({
   user,
   isAdmin,
   seasons,
@@ -282,6 +284,7 @@ function AdminPanel({
   colors,
   grades,
   routes,
+  message,
   onClose,
   onChanged,
   onMessage,
@@ -294,6 +297,7 @@ function AdminPanel({
   colors: Color[]
   grades: Grade[]
   routes: Route[]
+  message: Message
   onClose: () => void
   onChanged: () => Promise<void>
   onMessage: (message: Message) => void
@@ -332,12 +336,20 @@ function AdminPanel({
   }
 
   return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
-      <section className="admin-panel" role="dialog" aria-modal="true" aria-labelledby="admin-title" onMouseDown={(event) => event.stopPropagation()}>
-        <div className="section-heading">
-          <h2 id="admin-title">Administration</h2>
-          <button className="icon-button" type="button" onClick={onClose} aria-label="Fermer">×</button>
+    <div className="site-shell">
+      <header className="hero hero--admin">
+        <div>
+          <p className="eyebrow">Topopote · gestion du mur</p>
+          <h1 id="admin-title" className="admin-title">Administration</h1>
+          <p className="intro">Crée les saisons, les référentiels et les voies du topo.</p>
         </div>
+        <button className="button button--dark" type="button" onClick={onClose}>Retour au topo</button>
+      </header>
+
+      {message && <div className={`message message--${message.kind}`}>{message.text}</div>}
+
+      <main className="admin-page">
+        <section className="admin-panel" aria-labelledby="admin-title">
 
         {!isSupabaseConfigured ? (
           <p className="empty-state">Configure Supabase avant d’utiliser l’administration.</p>
@@ -389,7 +401,8 @@ function AdminPanel({
             </div>
           </div>
         )}
-      </section>
+        </section>
+      </main>
     </div>
   )
 }
@@ -435,22 +448,16 @@ function SeasonManager({ seasons, onChanged, onMessage }: {
   onMessage: (message: Message) => void
 }) {
   const [name, setName] = useState('')
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
   const [active, setActive] = useState(seasons.length === 0)
 
   async function submit(event: FormEvent) {
     event.preventDefault()
     const { error } = await supabase!.from('saisons').insert({
       nom: name,
-      date_debut: startDate,
-      date_fin: endDate || null,
       active,
     })
     if (error) return onMessage({ kind: 'error', text: error.message })
     setName('')
-    setStartDate('')
-    setEndDate('')
     setActive(false)
     onMessage({ kind: 'success', text: 'La saison a été ajoutée.' })
     await onChanged()
@@ -468,15 +475,13 @@ function SeasonManager({ seasons, onChanged, onMessage }: {
       <h3>Gérer les saisons</h3>
       <form className="form-grid form-grid--season" onSubmit={submit}>
         <label><span>Nom</span><input placeholder="Automne 2026" required value={name} onChange={(event) => setName(event.target.value)} /></label>
-        <label><span>Début</span><input type="date" required value={startDate} onChange={(event) => setStartDate(event.target.value)} /></label>
-        <label><span>Fin facultative</span><input type="date" min={startDate} value={endDate} onChange={(event) => setEndDate(event.target.value)} /></label>
         <label className="checkbox-label"><input type="checkbox" checked={active} onChange={(event) => setActive(event.target.checked)} /><span>Saison active</span></label>
         <button className="button button--accent">Ajouter la saison</button>
       </form>
       <div className="admin-list">
         {seasons.map((season) => (
           <div key={season.id}>
-            <span>{season.name} · depuis le {new Date(`${season.startDate}T00:00:00`).toLocaleDateString('fr-FR')}{season.active ? ' · active' : ''}</span>
+            <span>{season.name}{season.active ? ' · active' : ''}</span>
             {!season.active && <button type="button" onClick={() => void activate(season.id)}>Activer</button>}
           </div>
         ))}

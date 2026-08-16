@@ -14,5 +14,8 @@
 - Use email OTP codes only. The client prevents sign-up and the email template contains `{{ .Token }}` rather than a magic link.
 - Keep stable route identifiers so personal sessions can reference routes in phase two.
 - Keep all seasonal route sets instead of overwriting routes during the twice-yearly renewal.
-- Allow exactly one active season and select it by default in the public topo.
+- Allow exactly one active season and impose it as the only visible season in the public topo.
+- Keep seasons deliberately date-free in the application; retain nullable legacy database columns so the migration stays reversible.
 - Attach each relay to an ordered zone; zones describe stable physical wall sections.
+- Use a dedicated `#admin` page instead of a modal so the static GitHub Pages deployment needs no server-side route rewriting.
+- Publish the repository only under the GitHub owner `esca-caf-la-roche`, never under `JeanFi675`.

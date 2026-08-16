@@ -1,16 +1,15 @@
 import type { Route, RouteFilters } from '../types'
 
 export const emptyFilters: RouteFilters = {
-  seasonId: '',
   zoneId: '',
   relayId: '',
   colorId: '',
   gradeId: '',
 }
 
-export function filterRoutes(routes: Route[], filters: RouteFilters): Route[] {
+export function filterRoutes(routes: Route[], filters: RouteFilters, activeSeasonId: string | null): Route[] {
   return routes
-    .filter((route) => !filters.seasonId || route.seasonId === filters.seasonId)
+    .filter((route) => route.seasonId === activeSeasonId)
     .filter((route) => !filters.zoneId || route.relay.zoneId === filters.zoneId)
     .filter((route) => !filters.relayId || route.relayId === filters.relayId)
     .filter((route) => !filters.colorId || route.colorId === filters.colorId)

@@ -13,7 +13,7 @@ create table public.zones (
 create table public.saisons (
   id uuid primary key default gen_random_uuid(),
   nom text not null unique check (length(trim(nom)) > 0),
-  date_debut date not null,
+  date_debut date,
   date_fin date,
   active boolean not null default false,
   created_at timestamptz not null default now(),

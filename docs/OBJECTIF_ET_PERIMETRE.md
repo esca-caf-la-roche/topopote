@@ -12,13 +12,14 @@ Mettre à disposition un topo numérique simple du mur d’escalade de Saint-Pie
 
 ### Inclus
 
-- consultation publique des voies de la saison active et des saisons précédentes ;
-- filtres par saison, zone, numéro de relais, couleur et cotation ;
+- consultation publique limitée aux voies de la saison active choisie par un administrateur ;
+- filtres publics par zone, numéro de relais, couleur et cotation ;
 - renouvellement saisonnier des voies deux fois par an sans perte d’historique ;
 - regroupement des relais par zones nommées, par exemple « Zone verticale » ;
 - connexion administrateur par code OTP reçu par email, sans mot de passe ni lien magique ;
 - gestion des référentiels relais, couleurs et cotations ;
 - ajout et suppression de voies par un administrateur ;
+- page d’administration dédiée, distincte de la consultation publique ;
 - interface responsive au style néo-brutaliste ;
 - publication du frontend statique sur GitHub Pages ;
 - données, authentification et autorisations dans Supabase.
