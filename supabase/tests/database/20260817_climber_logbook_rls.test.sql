@@ -1,0 +1,161 @@
+begin;
+
+create extension if not exists pgtap with schema extensions;
+
+select plan(18);
+
+select ok(
+  not has_table_privilege('anon', 'public.profils', 'select'),
+  'anon ne peut pas lire directement les profils'
+);
+select ok(
+  has_table_privilege('authenticated', 'public.profils', 'select'),
+  'authenticated peut interroger son profil sous RLS'
+);
+select ok(
+  has_function_privilege('anon', 'public.classement_saison(uuid)', 'execute'),
+  'anon peut appeler uniquement le RPC public de classement'
+);
+
+insert into auth.users (
+  id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at
+) values
+  ('00000000-0000-0000-0000-00000000a001', 'authenticated', 'authenticated', 'a@rls.test', '', now(), now(), now()),
+  ('00000000-0000-0000-0000-00000000b002', 'authenticated', 'authenticated', 'b@rls.test', '', now(), now(), now()),
+  ('00000000-0000-0000-0000-00000000c003', 'authenticated', 'authenticated', 'admin@rls.test', '', now(), now(), now());
+
+insert into public.administrateurs (user_id)
+values ('00000000-0000-0000-0000-00000000c003');
+
+insert into public.zones (id, nom, ordre)
+values ('10000000-0000-0000-0000-000000000001', '__test_rls__', 32000);
+insert into public.saisons (id, nom, active)
+values ('20000000-0000-0000-0000-000000000002', '__test_rls__', true);
+insert into public.relais (id, numero, zone_id)
+values ('30000000-0000-0000-0000-000000000003', 32000, '10000000-0000-0000-0000-000000000001');
+insert into public.couleurs (id, nom, hex)
+values ('40000000-0000-0000-0000-000000000004', '__test_rls__', '#123456');
+insert into public.voies (id, saison_id, relais_id, couleur_id, cotation_id)
+select
+  '50000000-0000-0000-0000-000000000005',
+  '20000000-0000-0000-0000-000000000002',
+  '30000000-0000-0000-0000-000000000003',
+  '40000000-0000-0000-0000-000000000004',
+  cotation.id
+from public.cotations cotation
+where cotation.libelle = '6a';
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000a001', true);
+
+select lives_ok(
+  $$insert into public.profils (user_id, pseudo) values ('00000000-0000-0000-0000-00000000a001', 'Grimpeur A')$$,
+  'un pratiquant crée son propre profil'
+);
+select lives_ok(
+  $$update public.profils set classement_public = true where user_id = '00000000-0000-0000-0000-00000000a001'$$,
+  'le consentement au classement est modifiable'
+);
+select throws_ok(
+  $$insert into public.profils (user_id, pseudo) values ('00000000-0000-0000-0000-00000000b002', 'Profil usurpé')$$,
+  '42501',
+  null,
+  'un pratiquant ne peut pas créer le profil d’un autre'
+);
+
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000b002', true);
+
+select results_eq(
+  $$select count(*)::bigint from public.profils where user_id = '00000000-0000-0000-0000-00000000a001'$$,
+  $$values (0::bigint)$$,
+  'un profil public reste invisible directement aux autres pratiquants'
+);
+select lives_ok(
+  $$insert into public.profils (user_id, pseudo) values ('00000000-0000-0000-0000-00000000b002', 'Grimpeur B')$$,
+  'le second pratiquant crée son propre profil'
+);
+
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000a001', true);
+
+select lives_ok(
+  $$insert into public.enchainements (user_id, voie_id, saison_id, date_enchainement, style, essais)
+    values (
+      '00000000-0000-0000-0000-00000000b002',
+      '50000000-0000-0000-0000-000000000005',
+      '20000000-0000-0000-0000-000000000002',
+      current_date,
+      'a_vue',
+      1
+    )$$,
+  'un enchaînement valide peut être créé'
+);
+
+reset role;
+select is(
+  (select user_id from public.enchainements where voie_id = '50000000-0000-0000-0000-000000000005'),
+  '00000000-0000-0000-0000-00000000a001'::uuid,
+  'le trigger remplace tout user_id usurpé par auth.uid()'
+);
+select is(
+  (select saison_id from public.enchainements where voie_id = '50000000-0000-0000-0000-000000000005'),
+  '20000000-0000-0000-0000-000000000002'::uuid,
+  'le trigger impose la saison canonique de la voie'
+);
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000b002', true);
+select results_eq(
+  $$select count(*)::bigint from public.enchainements$$,
+  $$values (0::bigint)$$,
+  'un pratiquant ne lit pas le carnet d’un autre'
+);
+select results_eq(
+  $$update public.enchainements set commentaire = 'intrusion' returning id$$,
+  $$select null::uuid where false$$,
+  'un pratiquant ne modifie pas le carnet d’un autre'
+);
+select results_eq(
+  $$delete from public.enchainements returning id$$,
+  $$select null::uuid where false$$,
+  'un pratiquant ne supprime pas le carnet d’un autre'
+);
+
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000c003', true);
+select results_eq(
+  $$select count(*)::bigint from public.enchainements$$,
+  $$values (1::bigint)$$,
+  'un administrateur peut contrôler les carnets'
+);
+
+reset role;
+set local role anon;
+select set_config('request.jwt.claim.sub', '', true);
+select results_eq(
+  $$select count(*)::bigint from public.classement_saison('20000000-0000-0000-0000-000000000002')$$,
+  $$values (1::bigint)$$,
+  'le RPC anonyme retourne uniquement les profils ayant consenti'
+);
+select results_eq(
+  $$select score from public.classement_saison('20000000-0000-0000-0000-000000000002')$$,
+  $$values (547::bigint)$$,
+  'le RPC applique 400 points pour 6a et le bonus à vue de 147 points'
+);
+
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000c003', true);
+select throws_ok(
+  $$delete from public.voies where id = '50000000-0000-0000-0000-000000000005'$$,
+  '23503',
+  null,
+  'une voie utilisée par un carnet ne peut pas être supprimée en cascade'
+);
+
+select * from finish();
+rollback;

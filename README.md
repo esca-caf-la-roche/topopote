@@ -40,7 +40,23 @@ insert into public.administrateurs (user_id)
 select id from auth.users where email = 'admin@example.com';
 ```
 
-L’application refuse la création automatique de comptes. Un email inconnu ne peut donc pas s’inscrire depuis le site.
+Le formulaire administrateur refuse toujours la création automatique de comptes. Le formulaire **Mon carnet** autorise en revanche l’inscription d’un pratiquant par OTP. Pour l’activer sur le projet hébergé, autoriser les nouvelles inscriptions email dans **Authentication > Providers > Email**. Ne pas pousser globalement `supabase/config.toml` tant que les URL locales n’ont pas été remplacées par l’URL GitHub Pages définitive.
+
+## Carnet pratiquant et classement
+
+La migration `add_climber_logbook` ajoute les profils, les enchaînements, le barème et les politiques RLS. Avant application distante :
+
+```powershell
+supabase db push --linked --dry-run --skip-vault
+```
+
+Une fois la migration relue et appliquée, la page `#carnet` permet l’inscription et la saisie des voies ; `#classement` reste publique. Le score additionne les dix meilleures voies de la saison selon le barème `vertical-life-2026-v1` documenté dans `docs/OBJECTIF_ET_PERIMETRE.md`.
+
+La matrice SQL `supabase/tests/database/20260817_climber_logbook_rls.test.sql` vérifie les droits anon, pratiquant et administrateur, l’isolation entre deux pratiquants, le propriétaire imposé par `auth.uid()`, le RPC public et la conservation des carnets. Après `supabase start` et `supabase db reset`, l’exécuter avec :
+
+```powershell
+npm.cmd run test:db
+```
 
 ## Organiser le topo
 

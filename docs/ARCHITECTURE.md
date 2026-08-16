@@ -16,8 +16,12 @@ Pour l’application, une saison porte uniquement un nom et un état actif : l�
 
 Les lectures du topo et des référentiels sont publiques. Toute écriture est protégée côté base par RLS et dépend de la présence de l’utilisateur dans `administrateurs`. Le contrôle privilégié est isolé dans le schéma non exposé `private`. Un trigger rattache en plus chaque nouvelle voie à la saison active, quelle que soit la valeur envoyée par le client. Les fonctions de gestion de l’ordre des zones et cotations s’exécutent avec les droits de l’appelant et restent réservées aux administrateurs. Masquer les boutons dans React n’est donc jamais la barrière de sécurité.
 
+Les comptes pratiquants utilisent `profils`, relié en un-à-un à `auth.users` sans recopier l’adresse email. `enchainements` relie un pratiquant à une voie et conserve les informations du carnet. Un trigger impose côté base le propriétaire authentifié et la saison réelle de la voie ; une contrainte empêche de compter deux fois la même voie pour un pratiquant. Les politiques RLS limitent le détail du carnet à son propriétaire et aux administrateurs.
+
+Le score de base est porté par `cotations.points` et associé automatiquement au libellé de cotation. La fonction publique `classement_saison` agrège uniquement les profils ayant consenti au classement, somme les dix meilleurs scores et ne retourne ni email ni commentaire. Elle est `security definer` pour exposer volontairement ces seuls agrégats sans ouvrir les carnets bruts ; son `search_path` est vide et tous les objets sont qualifiés.
+
 ## Authentification
 
-Le frontend demande un OTP avec `shouldCreateUser: false`, puis vérifie le code avec `verifyOtp` et le type `email`. Le modèle Supabase doit contenir `{{ .Token }}` et ne doit pas contenir `{{ .ConfirmationURL }}` afin d’envoyer un code au lieu d’un lien magique.
+Le flux administrateur demande un OTP avec `shouldCreateUser: false`. Le flux pratiquant séparé utilise `shouldCreateUser: true`, puis les deux vérifient le code avec `verifyOtp` et le type `email`. Le modèle Supabase doit contenir `{{ .Token }}` et ne doit pas contenir `{{ .ConfirmationURL }}` afin d’envoyer un code au lieu d’un lien magique.
 
 La page d’administration utilise le fragment `#admin`. Ce routage reste compatible avec un hébergement statique GitHub Pages, permet la navigation avant/arrière du navigateur et évite de dépendre d’une réécriture serveur pour `/admin`.

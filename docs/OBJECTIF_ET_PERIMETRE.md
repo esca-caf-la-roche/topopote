@@ -34,6 +34,28 @@ Mettre à disposition un topo numérique simple du mur d’escalade de Saint-Pie
 - photos ou représentation graphique du mur ;
 - travail hors ligne.
 
-## Suite envisagée
+## Phase 2 — carnet et classement saisonnier
 
-Une deuxième phase ajoutera les comptes utilisateurs, l’enregistrement daté des séances et des réalisations, puis un tableau de bord. Le schéma actuel conserve des identifiants stables pour les voies et leur saison afin que ces données puissent être reliées ultérieurement sans refonte du topo.
+### Inclus
+
+- inscription et connexion pratiquant par code OTP email, sans mot de passe ;
+- profil avec pseudo et consentement explicite pour apparaître au classement public ;
+- enregistrement d’une voie de la saison active avec date, style, nombre d’essais, note, recommandation, cotation ressentie et commentaire privé ;
+- carnet personnel consultable par saison ;
+- tableau de bord avec score, rang, volume, meilleure cotation et répartition des styles ;
+- classement public par saison fondé sur les dix meilleurs enchaînements ;
+- vue administrateur du nombre de profils et de leur volume d’activité.
+
+### Règle de score
+
+Le barème `vertical-life-2026-v1` reprend l’échelle publique actuelle inspirée de 8a.nu : 6a vaut 400 points, 7a 700 et 8a 1 000. Les modificateurs sont +147 à vue, +53 flash, +2 au deuxième essai après travail et −50 en moulinette. Le score d’une saison additionne au maximum les dix meilleures voies uniques. Il s’agit d’un jeu motivant et non d’une mesure absolue du niveau.
+
+Contrairement à 8a.nu, Topopote ne travaille pas sur douze mois glissants : la saison portée par chaque voie constitue la période de classement. Les étoiles, la recommandation, le commentaire et le ressenti de cotation n’ont aucun effet sur les points.
+
+### Hors périmètre actuel
+
+- projets ou tentatives non enchaînées ;
+- répétitions multiples d’une même voie au sein d’une saison ;
+- bonus première ascension, escalade traditionnelle ou compétition ;
+- modération avancée, suspension de compte et audit détaillé des corrections ;
+- classement national ou inter-salles.

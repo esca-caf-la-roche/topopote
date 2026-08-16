@@ -3,6 +3,7 @@ import type { User } from '@supabase/supabase-js'
 import { createPortal } from 'react-dom'
 import { emptyFilters, filterRoutes, gradeDistribution } from './lib/routes'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
+import ClimberArea from './ClimberArea'
 import type { Color, Grade, Relay, Route, RouteFilters, RouteSort, Season, Zone } from './types'
 
 type Message = { kind: 'error' | 'success'; text: string } | null
@@ -28,7 +29,7 @@ export default function App() {
   const [message, setMessage] = useState<Message>(null)
   const [user, setUser] = useState<User | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
-  const [showAdmin, setShowAdmin] = useState(() => window.location.hash === '#admin')
+  const [page, setPage] = useState(() => window.location.hash.replace('#', ''))
   const [routeSort, setRouteSort] = useState<RouteSort>('relay')
   const [editRoutes, setEditRoutes] = useState(false)
   const [routeDraft, setRouteDraft] = useState<{ relayId?: string; gradeId?: string } | null>(null)
@@ -43,13 +44,13 @@ export default function App() {
       supabase
         .from('voies')
         .select(
-          'id, demi_voie, saison_id, relais_id, couleur_id, cotation_id, saison:saisons(id, nom, active), relais:relais(id, numero, zone_id, zone:zones(id, nom, ordre)), couleur:couleurs(id, nom, hex), cotation:cotations(id, libelle, rang, difficulte)',
+          'id, demi_voie, saison_id, relais_id, couleur_id, cotation_id, saison:saisons(id, nom, active), relais:relais(id, numero, zone_id, zone:zones(id, nom, ordre)), couleur:couleurs(id, nom, hex), cotation:cotations(id, libelle, rang, points, difficulte)',
         ),
       supabase.from('saisons').select('id, nom, active').order('active', { ascending: false }).order('created_at', { ascending: false }),
       supabase.from('zones').select('id, nom, ordre').order('ordre'),
       supabase.from('relais').select('id, numero, zone_id, zone:zones(id, nom, ordre)').order('numero'),
       supabase.from('couleurs').select('id, nom, hex').order('nom'),
-      supabase.from('cotations').select('id, libelle, rang, difficulte').order('rang'),
+      supabase.from('cotations').select('id, libelle, rang, points, difficulte').order('rang'),
     ])
 
     const error =
@@ -81,7 +82,7 @@ export default function App() {
           zone: { id: zone.id, name: zone.nom, order: zone.ordre },
         },
         color: { id: color.id, name: color.nom, hex: color.hex },
-        grade: { id: grade.id, label: grade.libelle, rank: grade.rang, difficulty: grade.difficulte },
+        grade: { id: grade.id, label: grade.libelle, rank: grade.rang, points: grade.points, difficulty: grade.difficulte },
       }
     })
 
@@ -102,7 +103,7 @@ export default function App() {
       (colorsResult.data ?? []).map((row) => ({ id: row.id, name: row.nom, hex: row.hex })),
     )
     setGrades(
-      (gradesResult.data ?? []).map((row) => ({ id: row.id, label: row.libelle, rank: row.rang, difficulty: row.difficulte })),
+      (gradesResult.data ?? []).map((row) => ({ id: row.id, label: row.libelle, rank: row.rang, points: row.points, difficulty: row.difficulte })),
     )
     setLoading(false)
   }, [])
@@ -134,7 +135,7 @@ export default function App() {
   }, [loadTopo, refreshAdmin])
 
   useEffect(() => {
-    const updatePage = () => setShowAdmin(window.location.hash === '#admin')
+    const updatePage = () => setPage(window.location.hash.replace('#', ''))
     window.addEventListener('hashchange', updatePage)
     return () => window.removeEventListener('hashchange', updatePage)
   }, [])
@@ -211,7 +212,7 @@ export default function App() {
     }
   }, [isAdmin])
 
-  if (showAdmin) {
+  if (page === 'admin') {
     return (
       <AdminPage
         user={user}
@@ -229,6 +230,19 @@ export default function App() {
     )
   }
 
+  if (page === 'carnet' || page === 'classement') {
+    return (
+      <ClimberArea
+        page={page}
+        user={user}
+        isAdmin={isAdmin}
+        routes={routes}
+        seasons={seasons}
+        onNavigate={(nextPage) => { window.location.hash = nextPage }}
+      />
+    )
+  }
+
   return (
     <div className="site-shell">
       <header className="hero">
@@ -239,6 +253,8 @@ export default function App() {
         </div>
         <div className="hero__aside">
           <div className="hero-actions">
+            <button className="button button--light" type="button" onClick={() => { window.location.hash = 'classement' }}>Classement</button>
+            <button className="button button--accent" type="button" onClick={() => { window.location.hash = 'carnet' }}>{user ? 'Mon carnet' : 'S’inscrire'}</button>
             {isAdmin && (
               <button
                 className={`button ${editRoutes ? 'button--accent' : 'button--dark'}`}
@@ -853,11 +869,66 @@ function AdminPage({
             </div>
             <SeasonManager seasons={seasons} onChanged={onChanged} onMessage={onMessage} />
             <ReferenceForms zones={zones} relays={relays} colors={colors} grades={grades} onChanged={onChanged} onMessage={onMessage} />
+            <PractitionerManager onMessage={onMessage} />
           </div>
         )}
         </section>
       </main>
     </div>
+  )
+}
+
+function PractitionerManager({ onMessage }: { onMessage: (message: Message) => void }) {
+  const [profiles, setProfiles] = useState<Array<{ userId: string; nickname: string; publicRanking: boolean; ascentCount: number }>>([])
+  const [loading, setLoading] = useState(true)
+
+  const load = useCallback(async () => {
+    if (!supabase) return
+    setLoading(true)
+    const [profilesResult, ascentsResult] = await Promise.all([
+      supabase.from('profils').select('user_id, pseudo, classement_public').order('pseudo'),
+      supabase.from('enchainements').select('user_id'),
+    ])
+    const error = profilesResult.error || ascentsResult.error
+    if (error) {
+      onMessage({ kind: 'error', text: `Pratiquants indisponibles : ${error.message}` })
+      setLoading(false)
+      return
+    }
+    const counts = new Map<string, number>()
+    for (const ascent of ascentsResult.data ?? []) counts.set(ascent.user_id, (counts.get(ascent.user_id) ?? 0) + 1)
+    setProfiles((profilesResult.data ?? []).map((profile) => ({
+      userId: profile.user_id,
+      nickname: profile.pseudo,
+      publicRanking: profile.classement_public,
+      ascentCount: counts.get(profile.user_id) ?? 0,
+    })))
+    setLoading(false)
+  }, [onMessage])
+
+  useEffect(() => { void load() }, [load])
+
+  return (
+    <section className="practitioner-manager" aria-labelledby="practitioner-manager-title">
+      <div className="manager-heading">
+        <div>
+          <p className="section-kicker">Comptes et activité</p>
+          <h3 id="practitioner-manager-title">Pratiquants</h3>
+        </div>
+        <span className="count">{profiles.length}</span>
+      </div>
+      {loading ? <p>Chargement des pratiquants…</p> : profiles.length === 0 ? <p className="empty-state">Aucun profil pratiquant.</p> : (
+        <div className="practitioner-list">
+          {profiles.map((profile) => (
+            <article key={profile.userId}>
+              <strong>{profile.nickname}</strong>
+              <span>{profile.ascentCount} enchaînement{profile.ascentCount > 1 ? 's' : ''}</span>
+              <span>{profile.publicRanking ? 'Classement public' : 'Profil privé'}</span>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
   )
 }
 

@@ -12,6 +12,7 @@ npm.cmd run dev
 ```powershell
 npm.cmd run lint
 npm.cmd run test
+npm.cmd run test:db
 npm.cmd run build
 ```
 
@@ -20,6 +21,7 @@ npm.cmd run build
 ```powershell
 supabase link --project-ref cxasxpzfeydwnzvpdtkf
 supabase db push --linked --dry-run
+supabase db push --linked --dry-run --skip-vault --yes
 supabase db push
 supabase migration list --linked
 supabase db advisors --linked --type security

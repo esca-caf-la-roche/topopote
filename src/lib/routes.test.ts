@@ -13,7 +13,7 @@ const routes: Route[] = [
     season: { id: 'summer', name: 'Été 2026', active: true },
     relay: { id: 'r1', number: 1, zoneId: 'vertical', zone: { id: 'vertical', name: 'Zone verticale', order: 1 } },
     color: { id: 'blue', name: 'Bleu', hex: '#2563eb' },
-    grade: { id: '7a-plus', label: '7a+', rank: 20, difficulty: 'Difficile' },
+    grade: { id: '7a-plus', label: '7a+', rank: 20, points: 750, difficulty: 'Difficile' },
   },
   {
     id: 'easy',
@@ -25,7 +25,7 @@ const routes: Route[] = [
     season: { id: 'summer', name: 'Été 2026', active: true },
     relay: { id: 'r1', number: 1, zoneId: 'vertical', zone: { id: 'vertical', name: 'Zone verticale', order: 1 } },
     color: { id: 'green', name: 'Vert', hex: '#16a34a' },
-    grade: { id: '5c', label: '5c', rank: 10, difficulty: 'Facile' },
+    grade: { id: '5c', label: '5c', rank: 10, points: 300, difficulty: 'Facile' },
   },
   {
     id: 'other-relay',
@@ -37,7 +37,7 @@ const routes: Route[] = [
     season: { id: 'winter', name: 'Hiver 2025', active: false },
     relay: { id: 'r2', number: 2, zoneId: 'overhang', zone: { id: 'overhang', name: 'Dévers', order: 2 } },
     color: { id: 'blue', name: 'Bleu', hex: '#2563eb' },
-    grade: { id: '5c', label: '5c', rank: 10, difficulty: 'Facile' },
+    grade: { id: '5c', label: '5c', rank: 10, points: 300, difficulty: 'Facile' },
   },
 ]
 
@@ -107,13 +107,13 @@ describe('filterRoutes', () => {
 
   it('groups normal and plus grades while keeping 4 and 5 grades separate', () => {
     const grades = [
-      { id: '4', label: '4', rank: 1, difficulty: 'Facile' as const },
-      { id: '4-plus', label: '4+', rank: 2, difficulty: 'Facile' as const },
-      { id: '5a', label: '5a', rank: 3, difficulty: 'Facile' as const },
-      { id: '5b', label: '5b', rank: 4, difficulty: 'Facile' as const },
+      { id: '4', label: '4', rank: 1, points: 50, difficulty: 'Facile' as const },
+      { id: '4-plus', label: '4+', rank: 2, points: 50, difficulty: 'Facile' as const },
+      { id: '5a', label: '5a', rank: 3, points: 100, difficulty: 'Facile' as const },
+      { id: '5b', label: '5b', rank: 4, points: 200, difficulty: 'Facile' as const },
       { ...routes[1].grade, rank: 5 },
-      { id: '6a', label: '6a', rank: 6, difficulty: 'Modéré' as const },
-      { id: '6a-plus', label: '6a+', rank: 7, difficulty: 'Modéré' as const },
+      { id: '6a', label: '6a', rank: 6, points: 400, difficulty: 'Modéré' as const },
+      { id: '6a-plus', label: '6a+', rank: 7, points: 450, difficulty: 'Modéré' as const },
       routes[0].grade,
     ]
 

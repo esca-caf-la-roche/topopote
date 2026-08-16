@@ -26,3 +26,7 @@
 |----------|-----------|------|
 | Group public filters into zone/relay, grade/difficulty, and color frames, then separate display preferences | Match the user's mental model, expose the real dependency between zone and relay, and keep filtering distinct from grouping and reset actions | 2026-08-16 |
 | Use an accessible reusable neo-brutalist switch for half routes and relay/grade grouping | Preserve the visual language while keeping keyboard navigation and explicit switch semantics | 2026-08-16 |
+| Replace 8a.nu's rolling 12-month window with the route's Topopote season and sum the ten best unique routes | Match the local wall renewal model while keeping a recognizable, explainable scoring game | 2026-08-17 |
+| Keep profiles private by default and expose the public leaderboard through a narrow aggregate RPC | Make ranking consent reversible and prevent public access to emails, comments and raw logbooks | 2026-08-17 |
+| Protect routes referenced by logbooks with `ON DELETE RESTRICT` | Preserve practitioner history instead of silently cascading route deletion into personal data loss | 2026-08-17 |
+| Keep administrators in the existing `administrateurs` table rather than adding a mutable profile role | Preserve the current server-side authorization contract and avoid user-controlled role metadata | 2026-08-17 |

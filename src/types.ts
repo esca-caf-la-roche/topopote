@@ -27,6 +27,7 @@ export type Grade = {
   id: string
   label: string
   rank: number
+  points: number
   difficulty: 'Facile' | 'Modéré' | 'Difficile' | 'Extrême'
 }
 
@@ -52,4 +53,42 @@ export type RouteFilters = {
   gradeId: string
   difficulty: string
   showHalfRoutes: boolean
+}
+
+export type AscentStyle = 'a_vue' | 'flash' | 'apres_travail' | 'moulinette'
+
+export type GradeFeeling = 'souple' | 'conforme' | 'dure'
+
+export type ClimberProfile = {
+  userId: string
+  nickname: string
+  publicRanking: boolean
+}
+
+export type Ascent = {
+  id: string
+  userId: string
+  routeId: string
+  seasonId: string
+  climbedAt: string
+  style: AscentStyle
+  attempts: number
+  gradeFeeling: GradeFeeling
+  rating: number | null
+  recommended: boolean
+  comment: string | null
+  route: Route
+}
+
+export type LeaderboardEntry = {
+  rank: number
+  nickname: string
+  isCurrent: boolean
+  score: number
+  ascentCount: number
+  bestGrade: string
+  onsight: number
+  flash: number
+  redpoint: number
+  topRope: number
 }
