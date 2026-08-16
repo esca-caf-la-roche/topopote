@@ -26,6 +26,7 @@ h1, h2, h3 { font-family: 'Archivo Black', sans-serif; text-transform: uppercase
 h1 { margin-bottom: 20px; font-size: clamp(3rem, 8vw, 6.5rem); line-height: .88; letter-spacing: -.05em; }
 h2 { font-size: clamp(2rem, 5vw, 3.5rem); margin-bottom: 0; }
 h3 { font-size: 1.05rem; margin-bottom: 16px; }
+.hero-tagline { margin: 0 0 8px; font-size: clamp(1.35rem, 3vw, 2rem); font-weight: 800; }
 .intro { font-size: 1.2rem; margin: 0; font-weight: 600; }
 
 .button { border: var(--border); padding: 13px 18px; font-weight: 800; background: var(--paper); box-shadow: 4px 4px 0 var(--ink); transition: transform .12s, box-shadow .12s; }

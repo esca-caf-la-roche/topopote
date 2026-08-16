@@ -102,7 +102,8 @@ export default function App() {
       <header className="hero">
         <div>
           <p className="eyebrow">Mur d’escalade · Saint-Pierre-en-Faucigny</p>
-          <h1>Le topo,<br />sans prise de tête.</h1>
+          <h1>topopote</h1>
+          <p className="hero-tagline">Le topo sans prise de tête.</p>
           <p className="intro">Trouve une voie par relais, couleur ou cotation.</p>
         </div>
         <button className="button button--dark" type="button" onClick={() => setShowAdmin(true)}>

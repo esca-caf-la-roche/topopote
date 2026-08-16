@@ -1,5 +1,9 @@
 # Objectif et périmètre
 
+## Nom du projet
+
+**topopote** — le topo sans prise de tête.
+
 ## Objectif du projet
 
 Mettre à disposition un topo numérique simple du mur d’escalade de Saint-Pierre-en-Faucigny. Toute personne peut consulter les voies et les filtrer par relais, couleur ou cotation. Les données sont enregistrées uniquement par les administrateurs autorisés.

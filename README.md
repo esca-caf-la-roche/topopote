@@ -1,6 +1,6 @@
-# Topo Saint-Pierre-en-Faucigny
+# topopote
 
-Topo public du mur d’escalade, avec gestion réservée aux administrateurs.
+Le topo sans prise de tête du mur d’escalade de Saint-Pierre-en-Faucigny, avec gestion réservée aux administrateurs.
 
 ## Démarrer en local
 
