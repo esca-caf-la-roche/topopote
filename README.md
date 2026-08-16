@@ -49,7 +49,7 @@ Dans l’administration, respecter cet ordre :
 1. créer une saison et la rendre active ;
 2. créer les zones puis régler leur ordre d’affichage ;
 3. créer les relais et les rattacher à une zone ;
-4. créer les couleurs et cotations (la difficulté est attribuée automatiquement : 4-5 facile, 6 modéré, 7 difficile, 8 extrême) ;
+4. créer les couleurs et cotations, puis choisir leur difficulté (Facile, Modéré, Difficile ou Extrême) ;
 5. revenir au topo public, activer le mode édition puis ajouter les voies depuis le groupe relais ou cotation voulu.
 
 Activer une nouvelle saison désactive automatiquement l’ancienne, sans supprimer son topo. Le public et la liste de gestion affichent uniquement les voies de la saison active.

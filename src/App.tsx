@@ -7,6 +7,8 @@ import type { Color, Grade, Relay, Route, RouteFilters, RouteSort, Season, Zone 
 
 type Message = { kind: 'error' | 'success'; text: string } | null
 
+const difficulties: Grade['difficulty'][] = ['Facile', 'Modéré', 'Difficile', 'Extrême']
+
 function relation<T>(value: T | T[] | null): T {
   if (Array.isArray(value)) return value[0]
   if (!value) throw new Error('Référence manquante pour une voie.')
@@ -255,6 +257,13 @@ export default function App() {
             onChange={(gradeId) => setFilters((current) => ({ ...current, gradeId }))}
           >
             {grades.map((grade) => <option key={grade.id} value={grade.id}>{grade.label}</option>)}
+          </FilterSelect>
+          <FilterSelect
+            label="Difficulté"
+            value={filters.difficulty}
+            onChange={(difficulty) => setFilters((current) => ({ ...current, difficulty }))}
+          >
+            {difficulties.map((difficulty) => <option key={difficulty} value={difficulty}>{difficulty}</option>)}
           </FilterSelect>
           <label className="checkbox-label filters__checkbox">
             <input
@@ -864,6 +873,7 @@ function ReferenceForms({ zones, relays, colors, grades, onChanged, onMessage }:
   const [colorName, setColorName] = useState('')
   const [colorHex, setColorHex] = useState('#ffde59')
   const [gradeLabel, setGradeLabel] = useState('')
+  const [gradeDifficulty, setGradeDifficulty] = useState<Grade['difficulty']>('Facile')
 
   async function insert(table: 'relais' | 'couleurs', values: Record<string, string | number>) {
     const { error } = await supabase!.from(table).insert(values)
@@ -889,9 +899,10 @@ function ReferenceForms({ zones, relays, colors, grades, onChanged, onMessage }:
 
   async function addGrade(event: FormEvent) {
     event.preventDefault()
-    const { error } = await supabase!.rpc('ajouter_cotation', { p_libelle: gradeLabel })
+    const { error } = await supabase!.rpc('ajouter_cotation', { p_libelle: gradeLabel, p_difficulte: gradeDifficulty })
     if (error) return onMessage({ kind: 'error', text: error.message })
     setGradeLabel('')
+    setGradeDifficulty('Facile')
     setAdding(null)
     onMessage({ kind: 'success', text: 'La cotation a été ajoutée.' })
     await onChanged()
@@ -956,6 +967,7 @@ function ReferenceForms({ zones, relays, colors, grades, onChanged, onMessage }:
           {adding === 'grade' && (
             <form className="inline-create" onSubmit={addGrade}>
               <label><span>Cotation</span><input placeholder="7a+" required value={gradeLabel} onChange={(event) => setGradeLabel(event.target.value)} /></label>
+              <label><span>Difficulté</span><select value={gradeDifficulty} onChange={(event) => setGradeDifficulty(event.target.value as Grade['difficulty'])}>{difficulties.map((difficulty) => <option key={difficulty} value={difficulty}>{difficulty}</option>)}</select></label>
               <button className="button button--small">Ajouter</button>
             </form>
           )}
@@ -1070,12 +1082,13 @@ function ColorReferenceEditor({ color, onChanged, onMessage }: ReferenceEditorPr
 function GradeReferenceEditor({ grade, onChanged, onMessage }: ReferenceEditorProps & { grade: Grade }) {
   const [label, setLabel] = useState(grade.label)
   const [rank, setRank] = useState(String(grade.rank))
+  const [difficulty, setDifficulty] = useState<Grade['difficulty']>(grade.difficulty)
 
   async function save(event: FormEvent) {
     event.preventDefault()
-    const { error } = await supabase!.rpc('modifier_cotation', { p_cotation_id: grade.id, p_libelle: label, p_nouveau_rang: Number(rank) })
+    const { error } = await supabase!.rpc('modifier_cotation', { p_cotation_id: grade.id, p_libelle: label, p_nouveau_rang: Number(rank), p_difficulte: difficulty })
     if (error) return onMessage({ kind: 'error', text: error.message })
-    onMessage({ kind: 'success', text: 'La cotation et son ordre ont été modifiés.' })
+    onMessage({ kind: 'success', text: 'La cotation, sa difficulté et son ordre ont été modifiés.' })
     await onChanged()
   }
 
@@ -1091,7 +1104,7 @@ function GradeReferenceEditor({ grade, onChanged, onMessage }: ReferenceEditorPr
     <form className="reference-editor" onSubmit={save}>
       <label><span>Cotation</span><input required value={label} onChange={(event) => setLabel(event.target.value)} /></label>
       <label><span>Ordre</span><input type="number" min="1" required value={rank} onChange={(event) => setRank(event.target.value)} /></label>
-      <div className="reference-editor__difficulty"><small>Difficulté</small><strong>{grade.difficulty}</strong></div>
+      <label><span>Difficulté</span><select value={difficulty} onChange={(event) => setDifficulty(event.target.value as Grade['difficulty'])}>{difficulties.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
       <div className="row-actions">
         <ActionButton icon="save" label="Enregistrer la cotation" type="submit" />
         <ActionButton className="danger-action" icon="delete" label={`Supprimer la cotation ${grade.label}`} type="button" onClick={() => void remove()} />

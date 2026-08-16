@@ -50,5 +50,6 @@ export type RouteFilters = {
   relayId: string
   colorId: string
   gradeId: string
+  difficulty: string
   showHalfRoutes: boolean
 }

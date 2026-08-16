@@ -57,6 +57,12 @@ describe('filterRoutes', () => {
     ).toEqual(['hard'])
   })
 
+  it('filters routes by difficulty', () => {
+    expect(filterRoutes(routes, { ...emptyFilters, difficulty: 'Difficile' }, 'summer').map(({ id }) => id)).toEqual([
+      'hard',
+    ])
+  })
+
   it('imposes the active season while filtering by zone', () => {
     expect(
       filterRoutes(routes, { ...emptyFilters, zoneId: 'vertical' }, 'summer').map(

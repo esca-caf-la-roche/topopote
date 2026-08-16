@@ -5,6 +5,7 @@ export const emptyFilters: RouteFilters = {
   relayId: '',
   colorId: '',
   gradeId: '',
+  difficulty: '',
   showHalfRoutes: true,
 }
 
@@ -20,6 +21,7 @@ export function filterRoutes(
     .filter((route) => !filters.relayId || route.relayId === filters.relayId)
     .filter((route) => !filters.colorId || route.colorId === filters.colorId)
     .filter((route) => !filters.gradeId || route.gradeId === filters.gradeId)
+    .filter((route) => !filters.difficulty || route.grade.difficulty === filters.difficulty)
     .filter((route) => filters.showHalfRoutes || !route.isHalfRoute)
     .sort(
       (left, right) =>
