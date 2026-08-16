@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { emptyFilters, filterRoutes } from './routes'
+import { emptyFilters, filterRoutes, gradeDistribution } from './routes'
 import type { Route } from '../types'
 
 const routes: Route[] = [
@@ -102,6 +102,29 @@ describe('filterRoutes', () => {
       'easy',
       'easy-other-relay',
       'hard',
+    ])
+  })
+
+  it('groups normal and plus grades while keeping 4 and 5 grades separate', () => {
+    const grades = [
+      { id: '4', label: '4', rank: 1, difficulty: 'Facile' as const },
+      { id: '4-plus', label: '4+', rank: 2, difficulty: 'Facile' as const },
+      { id: '5a', label: '5a', rank: 3, difficulty: 'Facile' as const },
+      { id: '5b', label: '5b', rank: 4, difficulty: 'Facile' as const },
+      { ...routes[1].grade, rank: 5 },
+      { id: '6a', label: '6a', rank: 6, difficulty: 'Modéré' as const },
+      { id: '6a-plus', label: '6a+', rank: 7, difficulty: 'Modéré' as const },
+      routes[0].grade,
+    ]
+
+    expect(gradeDistribution(routes.slice(0, 2), grades)).toMatchObject([
+      { label: '4', count: 0, percentage: 0 },
+      { label: '4+', count: 0, percentage: 0 },
+      { label: '5a', count: 0, percentage: 0 },
+      { label: '5b', count: 0, percentage: 0 },
+      { label: '5c', count: 1, percentage: 50 },
+      { label: '6a / 6a+', count: 0, percentage: 0 },
+      { label: '7a / 7a+', count: 1, percentage: 50 },
     ])
   })
 })

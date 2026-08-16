@@ -1,11 +1,12 @@
 import { type FormEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { createPortal } from 'react-dom'
-import { emptyFilters, filterRoutes } from './lib/routes'
+import { emptyFilters, filterRoutes, gradeDistribution } from './lib/routes'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
 import type { Color, Grade, Relay, Route, RouteFilters, RouteSort, Season, Zone } from './types'
 
 type Message = { kind: 'error' | 'success'; text: string } | null
+type DistributionView = 'grade' | 'zone'
 
 const difficulties: Grade['difficulty'][] = ['Facile', 'Modéré', 'Difficile', 'Extrême']
 
@@ -31,6 +32,8 @@ export default function App() {
   const [routeSort, setRouteSort] = useState<RouteSort>('relay')
   const [editRoutes, setEditRoutes] = useState(false)
   const [routeDraft, setRouteDraft] = useState<{ relayId?: string; gradeId?: string } | null>(null)
+  const [showDistributionDetails, setShowDistributionDetails] = useState(false)
+  const [distributionView, setDistributionView] = useState<DistributionView>('grade')
 
   const loadTopo = useCallback(async () => {
     if (!supabase) return
@@ -141,6 +144,44 @@ export default function App() {
     () => filterRoutes(routes, filters, activeSeasonId, routeSort),
     [routes, filters, activeSeasonId, routeSort],
   )
+  const visibleGradeDistribution = useMemo(
+    () => gradeDistribution(visibleRoutes, grades),
+    [grades, visibleRoutes],
+  )
+  const visibleGradeDistributionByDifficulty = useMemo(
+    () => difficulties.map((difficulty) => {
+      const groups = visibleGradeDistribution.filter(
+        (group) => group.difficulty === difficulty && group.percentage > 0,
+      )
+      const count = groups.reduce((total, group) => total + group.count, 0)
+      return {
+        difficulty,
+        groups,
+        count,
+        percentage: visibleRoutes.length === 0 ? 0 : Math.round((count / visibleRoutes.length) * 100),
+      }
+    }).filter((difficulty) => difficulty.percentage > 0),
+    [visibleGradeDistribution, visibleRoutes.length],
+  )
+  const visibleZoneDistribution = useMemo(
+    () => zones.map((zone) => {
+      const zoneRoutes = visibleRoutes.filter((route) => route.relay.zoneId === zone.id)
+      return {
+        zone,
+        count: zoneRoutes.length,
+        percentage: visibleRoutes.length === 0 ? 0 : Math.round((zoneRoutes.length / visibleRoutes.length) * 100),
+        difficulties: difficulties.map((difficulty) => {
+          const count = zoneRoutes.filter((route) => route.grade.difficulty === difficulty).length
+          return {
+            difficulty,
+            count,
+            percentage: zoneRoutes.length === 0 ? 0 : Math.round((count / zoneRoutes.length) * 100),
+          }
+        }).filter((difficulty) => difficulty.percentage > 0),
+      }
+    }).filter((zone) => zone.percentage > 0),
+    [visibleRoutes, zones],
+  )
   const routesByZone = useMemo(
     () => zones
       .map((zone) => {
@@ -191,32 +232,42 @@ export default function App() {
   return (
     <div className="site-shell">
       <header className="hero">
-        <div>
+        <div className="hero__content">
+          <h1>TOPOPOTE</h1>
           <p className="eyebrow">Mur d’escalade · Saint-Pierre-en-Faucigny</p>
-          <h1>topopote</h1>
-          <p className="hero-tagline">Le topo sans prise de tête.</p>
           <p className="intro">Trouve une voie par zone, relais, couleur ou cotation.</p>
         </div>
-        <div className="hero-actions">
-          {isAdmin && (
-            <button
-              className={`button ${editRoutes ? 'button--accent' : 'button--dark'}`}
-              type="button"
-              aria-pressed={editRoutes}
-              onClick={() => {
-                setEditRoutes((current) => {
-                  if (!current) setFilters(emptyFilters)
-                  return !current
-                })
-                setRouteDraft(null)
-              }}
-            >
-              {editRoutes ? 'Quitter le mode édition' : 'Modifier les voies'}
+        <div className="hero__aside">
+          <div className="hero-actions">
+            {isAdmin && (
+              <button
+                className={`button ${editRoutes ? 'button--accent' : 'button--dark'}`}
+                type="button"
+                aria-pressed={editRoutes}
+                onClick={() => {
+                  setEditRoutes((current) => {
+                    if (!current) setFilters(emptyFilters)
+                    return !current
+                  })
+                  setRouteDraft(null)
+                }}
+              >
+                {editRoutes ? 'Quitter le mode édition' : 'Modifier les voies'}
+              </button>
+            )}
+            <button className="button button--dark" type="button" onClick={() => { window.location.hash = 'admin' }}>
+              {isAdmin ? 'Administration' : 'Espace admin'}
             </button>
-          )}
-          <button className="button button--dark" type="button" onClick={() => { window.location.hash = 'admin' }}>
-            {isAdmin ? 'Administration' : 'Espace admin'}
-          </button>
+          </div>
+          <a
+            className="club-link"
+            href="https://www.caflarochebonneville.fr/"
+            target="_blank"
+            rel="noreferrer"
+          >
+            <img src={`${import.meta.env.BASE_URL}club-alpin-roche-bonneville.png`} alt="Logo du Club alpin français La Roche Bonneville" />
+            <span>Un outil du<br />CAF La Roche Bonneville</span>
+          </a>
         </div>
       </header>
 
@@ -316,6 +367,100 @@ export default function App() {
               </div>
             </div>
           </div>
+        </section>
+
+        <section className="grade-stats" aria-labelledby="grade-stats-title">
+          <div className="grade-stats__heading">
+            <div>
+              <p className="grade-stats__eyebrow">Selon les filtres actifs</p>
+              <h2 id="grade-stats-title">Répartition</h2>
+            </div>
+            <div className="grade-stats__actions">
+              <p>{visibleRoutes.length} voie{visibleRoutes.length > 1 ? 's' : ''}</p>
+              <button
+                className={`grade-stats__view-button ${distributionView === 'grade' ? 'is-active' : ''}`}
+                type="button"
+                aria-pressed={distributionView === 'grade'}
+                onClick={() => setDistributionView('grade')}
+              >
+                Répartition par difficulté
+              </button>
+              <button
+                className={`grade-stats__view-button ${distributionView === 'zone' ? 'is-active' : ''}`}
+                type="button"
+                aria-pressed={distributionView === 'zone'}
+                onClick={() => setDistributionView('zone')}
+              >
+                Répartition par zone
+              </button>
+              <button
+                className="grade-stats__toggle"
+                type="button"
+                aria-expanded={showDistributionDetails}
+                aria-controls="distribution-details"
+                onClick={() => setShowDistributionDetails((current) => !current)}
+              >
+                {showDistributionDetails ? 'Masquer le détail' : 'Afficher le détail'}
+              </button>
+            </div>
+          </div>
+          {distributionView === 'grade' ? (
+            <div className="grade-stats__difficulty-grid" id="distribution-details">
+              {visibleGradeDistributionByDifficulty.map(({ difficulty, groups, count, percentage }) => (
+                <section className="grade-stats__difficulty" key={difficulty} aria-labelledby={`difficulty-${difficulty}`}>
+                  <div className="grade-stats__difficulty-heading">
+                    <h3 id={`difficulty-${difficulty}`}>{difficulty}</h3>
+                    <output>{percentage}&nbsp;%</output>
+                  </div>
+                  <p>{count} voie{count > 1 ? 's' : ''}</p>
+                  {showDistributionDetails && (
+                    <ul className="grade-stats__list">
+                      {groups.map((group) => (
+                        <li key={group.label}>
+                          <div className="grade-stats__label">
+                            <strong>{group.label}</strong>
+                            <span>{group.count} voie{group.count > 1 ? 's' : ''}</span>
+                          </div>
+                          <div className="grade-stats__bar" aria-label={`${group.label} : ${group.percentage} % des voies filtrées`}>
+                            <span style={{ width: `${group.percentage}%` }} />
+                          </div>
+                          <output>{group.percentage}&nbsp;%</output>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+              ))}
+            </div>
+          ) : (
+            <div className="grade-stats__zone-grid" id="distribution-details">
+              {visibleZoneDistribution.map(({ zone, count, percentage, difficulties: zoneDifficulties }) => (
+                <section className="grade-stats__zone" key={zone.id} aria-labelledby={`stats-zone-${zone.id}`}>
+                  <div className="grade-stats__difficulty-heading">
+                    <h3 id={`stats-zone-${zone.id}`}>{zone.name}</h3>
+                    <output>{percentage}&nbsp;%</output>
+                  </div>
+                  <p>{count} voie{count > 1 ? 's' : ''}</p>
+                  {showDistributionDetails && (
+                    <ul className="grade-stats__list">
+                      {zoneDifficulties.map((difficulty) => (
+                        <li key={difficulty.difficulty}>
+                          <div className="grade-stats__label">
+                            <strong>{difficulty.difficulty}</strong>
+                            <span>{difficulty.count} voie{difficulty.count > 1 ? 's' : ''}</span>
+                          </div>
+                          <div className="grade-stats__bar" aria-label={`${difficulty.difficulty} : ${difficulty.percentage} % des voies de ${zone.name}`}>
+                            <span style={{ width: `${difficulty.percentage}%` }} />
+                          </div>
+                          <output>{difficulty.percentage}&nbsp;%</output>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+              ))}
+            </div>
+          )}
         </section>
 
         <section aria-labelledby="routes-title">

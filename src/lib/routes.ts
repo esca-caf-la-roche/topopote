@@ -1,4 +1,12 @@
-import type { Route, RouteFilters, RouteSort } from '../types'
+import type { Grade, Route, RouteFilters, RouteSort } from '../types'
+
+export type GradeDistribution = {
+  label: string
+  difficulty: Grade['difficulty']
+  count: number
+  percentage: number
+  rank: number
+}
 
 export const emptyFilters: RouteFilters = {
   zoneId: '',
@@ -31,4 +39,50 @@ export function filterRoutes(
           : left.grade.rank - right.grade.rank || left.relay.number - right.relay.number) ||
         left.id.localeCompare(right.id),
     )
+}
+
+function distributionLabel(grade: Grade): string {
+  const label = grade.label.trim()
+  const match = label.match(/^([6-9][a-c])\+?$/i)
+  if (!match) return label
+
+  const base = match[1].toLowerCase()
+  return `${base} / ${base}+`
+}
+
+export function gradeDistribution(routes: Route[], grades: Grade[]): GradeDistribution[] {
+  const distribution = new Map<string, GradeDistribution>()
+
+  for (const grade of grades) {
+    const label = distributionLabel(grade)
+    const current = distribution.get(label)
+    if (current) {
+      current.rank = Math.min(current.rank, grade.rank)
+    } else {
+      distribution.set(label, { label, difficulty: grade.difficulty, count: 0, percentage: 0, rank: grade.rank })
+    }
+  }
+
+  for (const route of routes) {
+    const label = distributionLabel(route.grade)
+    const current = distribution.get(label)
+    if (current) {
+      current.count += 1
+    } else {
+      distribution.set(label, {
+        label,
+        difficulty: route.grade.difficulty,
+        count: 1,
+        percentage: 0,
+        rank: route.grade.rank,
+      })
+    }
+  }
+
+  return [...distribution.values()]
+    .sort((left, right) => left.rank - right.rank || left.label.localeCompare(right.label))
+    .map((group) => ({
+      ...group,
+      percentage: routes.length === 0 ? 0 : Math.round((group.count / routes.length) * 100),
+    }))
 }
