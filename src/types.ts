@@ -27,10 +27,12 @@ export type Grade = {
   id: string
   label: string
   rank: number
+  difficulty: 'Facile' | 'Modéré' | 'Difficile' | 'Extrême'
 }
 
 export type Route = {
   id: string
+  isHalfRoute: boolean
   seasonId: string
   relayId: string
   colorId: string
@@ -41,9 +43,12 @@ export type Route = {
   grade: Grade
 }
 
+export type RouteSort = 'relay' | 'grade'
+
 export type RouteFilters = {
   zoneId: string
   relayId: string
   colorId: string
   gradeId: string
+  showHalfRoutes: boolean
 }

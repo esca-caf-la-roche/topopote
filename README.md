@@ -47,12 +47,13 @@ L’application refuse la création automatique de comptes. Un email inconnu ne 
 Dans l’administration, respecter cet ordre :
 
 1. créer une saison et la rendre active ;
-2. créer les zones dans leur ordre d’affichage ;
+2. créer les zones puis régler leur ordre d’affichage ;
 3. créer les relais et les rattacher à une zone ;
-4. créer les couleurs et cotations ;
-5. enregistrer les voies dans la saison correspondante.
+4. créer les couleurs et cotations (la difficulté est attribuée automatiquement : 4-5 facile, 6 modéré, 7 difficile, 8 extrême) ;
+5. revenir au topo public, activer le mode édition puis ajouter les voies depuis le groupe relais ou cotation voulu.
 
-Activer une nouvelle saison désactive automatiquement l’ancienne, sans supprimer son topo. Les anciennes saisons restent consultables depuis le filtre public.
+Activer une nouvelle saison désactive automatiquement l’ancienne, sans supprimer son topo. Le public et la liste de gestion affichent uniquement les voies de la saison active.
+Les voies n’ont pas d’ordre manuel : le visiteur choisit un affichage regroupé par relais ou par cotation.
 
 ## Commandes de vérification
 

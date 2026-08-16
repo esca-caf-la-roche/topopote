@@ -1,8 +1,9 @@
-import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
+import { type FormEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
+import { createPortal } from 'react-dom'
 import { emptyFilters, filterRoutes } from './lib/routes'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
-import type { Color, Grade, Relay, Route, RouteFilters, Season, Zone } from './types'
+import type { Color, Grade, Relay, Route, RouteFilters, RouteSort, Season, Zone } from './types'
 
 type Message = { kind: 'error' | 'success'; text: string } | null
 
@@ -25,6 +26,9 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
   const [showAdmin, setShowAdmin] = useState(() => window.location.hash === '#admin')
+  const [routeSort, setRouteSort] = useState<RouteSort>('relay')
+  const [editRoutes, setEditRoutes] = useState(false)
+  const [routeDraft, setRouteDraft] = useState<{ relayId?: string; gradeId?: string } | null>(null)
 
   const loadTopo = useCallback(async () => {
     if (!supabase) return
@@ -34,13 +38,13 @@ export default function App() {
       supabase
         .from('voies')
         .select(
-          'id, saison_id, relais_id, couleur_id, cotation_id, saison:saisons(id, nom, active), relais:relais(id, numero, zone_id, zone:zones(id, nom, ordre)), couleur:couleurs(id, nom, hex), cotation:cotations(id, libelle, rang)',
+          'id, demi_voie, saison_id, relais_id, couleur_id, cotation_id, saison:saisons(id, nom, active), relais:relais(id, numero, zone_id, zone:zones(id, nom, ordre)), couleur:couleurs(id, nom, hex), cotation:cotations(id, libelle, rang, difficulte)',
         ),
       supabase.from('saisons').select('id, nom, active').order('active', { ascending: false }).order('created_at', { ascending: false }),
       supabase.from('zones').select('id, nom, ordre').order('ordre'),
       supabase.from('relais').select('id, numero, zone_id, zone:zones(id, nom, ordre)').order('numero'),
       supabase.from('couleurs').select('id, nom, hex').order('nom'),
-      supabase.from('cotations').select('id, libelle, rang').order('rang'),
+      supabase.from('cotations').select('id, libelle, rang, difficulte').order('rang'),
     ])
 
     const error =
@@ -59,6 +63,7 @@ export default function App() {
       const grade = relation(row.cotation)
       return {
         id: row.id,
+        isHalfRoute: row.demi_voie,
         seasonId: row.saison_id,
         relayId: row.relais_id,
         colorId: row.couleur_id,
@@ -71,7 +76,7 @@ export default function App() {
           zone: { id: zone.id, name: zone.nom, order: zone.ordre },
         },
         color: { id: color.id, name: color.nom, hex: color.hex },
-        grade: { id: grade.id, label: grade.libelle, rank: grade.rang },
+        grade: { id: grade.id, label: grade.libelle, rank: grade.rang, difficulty: grade.difficulte },
       }
     })
 
@@ -92,7 +97,7 @@ export default function App() {
       (colorsResult.data ?? []).map((row) => ({ id: row.id, name: row.nom, hex: row.hex })),
     )
     setGrades(
-      (gradesResult.data ?? []).map((row) => ({ id: row.id, label: row.libelle, rank: row.rang })),
+      (gradesResult.data ?? []).map((row) => ({ id: row.id, label: row.libelle, rank: row.rang, difficulty: row.difficulte })),
     )
     setLoading(false)
   }, [])
@@ -131,9 +136,37 @@ export default function App() {
 
   const activeSeasonId = seasons.find((season) => season.active)?.id ?? null
   const visibleRoutes = useMemo(
-    () => filterRoutes(routes, filters, activeSeasonId),
-    [routes, filters, activeSeasonId],
+    () => filterRoutes(routes, filters, activeSeasonId, routeSort),
+    [routes, filters, activeSeasonId, routeSort],
   )
+  const routesByZone = useMemo(
+    () => zones
+      .map((zone) => {
+        const zoneRoutes = visibleRoutes.filter((route) => route.relay.zoneId === zone.id)
+        const references = routeSort === 'relay'
+          ? relays.filter((relay) => relay.zoneId === zone.id)
+          : grades
+        const groups = references
+          .map((reference) => ({
+            id: reference.id,
+            label: routeSort === 'relay' ? `Relais ${(reference as Relay).number}` : (reference as Grade).label,
+            routes: zoneRoutes.filter((route) => routeSort === 'relay'
+              ? route.relayId === reference.id
+              : route.gradeId === reference.id),
+          }))
+          .filter((group) => group.routes.length > 0 || editRoutes)
+        return { zone, groups, routeCount: zoneRoutes.length }
+      })
+      .filter((group) => group.routeCount > 0 || editRoutes),
+    [editRoutes, grades, relays, routeSort, visibleRoutes, zones],
+  )
+
+  useEffect(() => {
+    if (!isAdmin) {
+      setEditRoutes(false)
+      setRouteDraft(null)
+    }
+  }, [isAdmin])
 
   if (showAdmin) {
     return (
@@ -145,7 +178,6 @@ export default function App() {
         relays={relays}
         colors={colors}
         grades={grades}
-        routes={routes}
         message={message}
         onClose={() => { window.location.hash = '' }}
         onChanged={loadTopo}
@@ -163,9 +195,27 @@ export default function App() {
           <p className="hero-tagline">Le topo sans prise de tête.</p>
           <p className="intro">Trouve une voie par zone, relais, couleur ou cotation.</p>
         </div>
-        <button className="button button--dark" type="button" onClick={() => { window.location.hash = 'admin' }}>
-          {isAdmin ? 'Gérer le topo' : 'Espace admin'}
-        </button>
+        <div className="hero-actions">
+          {isAdmin && (
+            <button
+              className={`button ${editRoutes ? 'button--accent' : 'button--dark'}`}
+              type="button"
+              aria-pressed={editRoutes}
+              onClick={() => {
+                setEditRoutes((current) => {
+                  if (!current) setFilters(emptyFilters)
+                  return !current
+                })
+                setRouteDraft(null)
+              }}
+            >
+              {editRoutes ? 'Quitter le mode édition' : 'Modifier les voies'}
+            </button>
+          )}
+          <button className="button button--dark" type="button" onClick={() => { window.location.hash = 'admin' }}>
+            {isAdmin ? 'Administration' : 'Espace admin'}
+          </button>
+        </div>
       </header>
 
       {!isSupabaseConfigured && (
@@ -194,13 +244,11 @@ export default function App() {
               .filter((relay) => !filters.zoneId || relay.zoneId === filters.zoneId)
               .map((relay) => <option key={relay.id} value={relay.id}>Relais {relay.number}</option>)}
           </FilterSelect>
-          <FilterSelect
-            label="Couleur"
+          <ColorFilter
+            colors={colors}
             value={filters.colorId}
             onChange={(colorId) => setFilters((current) => ({ ...current, colorId }))}
-          >
-            {colors.map((color) => <option key={color.id} value={color.id}>{color.name}</option>)}
-          </FilterSelect>
+          />
           <FilterSelect
             label="Cotation"
             value={filters.gradeId}
@@ -208,6 +256,21 @@ export default function App() {
           >
             {grades.map((grade) => <option key={grade.id} value={grade.id}>{grade.label}</option>)}
           </FilterSelect>
+          <label className="checkbox-label filters__checkbox">
+            <input
+              type="checkbox"
+              checked={filters.showHalfRoutes}
+              onChange={(event) => setFilters((current) => ({ ...current, showHalfRoutes: event.target.checked }))}
+            />
+            <span>Afficher les ½ voies</span>
+          </label>
+          <label>
+            <span>Afficher par</span>
+            <select value={routeSort} onChange={(event) => setRouteSort(event.target.value as RouteSort)}>
+              <option value="relay">Relais</option>
+              <option value="grade">Cotation</option>
+            </select>
+          </label>
           <button className="button button--light" type="button" onClick={() => setFilters(emptyFilters)}>
             Tout afficher
           </button>
@@ -216,31 +279,83 @@ export default function App() {
         <section aria-labelledby="routes-title">
           <div className="section-heading">
             <h2 id="routes-title">Les voies</h2>
-            <span className="count">{visibleRoutes.length}</span>
+            <div className="section-heading__actions">
+              {editRoutes && (
+                <button className="button button--accent" type="button" onClick={() => setRouteDraft({})}>
+                  + Ajouter une voie
+                </button>
+              )}
+              <span className="count">{visibleRoutes.length}</span>
+            </div>
           </div>
+          {routeDraft && (
+            <RouteModal
+              key={`${routeDraft.relayId ?? ''}-${routeDraft.gradeId ?? ''}`}
+              activeSeason={seasons.find((season) => season.active) ?? null}
+              relays={relays}
+              colors={colors}
+              grades={grades}
+              initialRelayId={routeDraft.relayId}
+              initialGradeId={routeDraft.gradeId}
+              onClose={() => setRouteDraft(null)}
+              onChanged={async () => {
+                await loadTopo()
+                setRouteDraft(null)
+              }}
+              onMessage={setMessage}
+            />
+          )}
           {loading ? (
             <p className="empty-state">Chargement du topo…</p>
-          ) : visibleRoutes.length === 0 ? (
+          ) : visibleRoutes.length === 0 && !editRoutes ? (
             <p className="empty-state">Aucune voie ne correspond à ces filtres.</p>
           ) : (
-            <div className="route-grid">
-              {visibleRoutes.map((route) => (
-                <article className="route-card" key={route.id}>
-                  <div className="route-card__color" style={{ backgroundColor: route.color.hex }} aria-hidden="true" />
-                  <div>
-                    <p>Relais</p>
-                    <strong>{route.relay.number}</strong>
+            <div className="zone-groups">
+              {routesByZone.map(({ zone, groups, routeCount }) => (
+                <section className="zone-group" key={zone.id} aria-labelledby={`zone-${zone.id}`}>
+                  <div className="zone-heading">
+                    <h3 id={`zone-${zone.id}`}>{zone.name}</h3>
+                    <span>{routeCount} voie{routeCount > 1 ? 's' : ''}</span>
                   </div>
-                  <div>
-                    <p>Zone</p>
-                    <strong>{route.relay.zone.name}</strong>
+                  <div className="route-groups">
+                    {groups.map((group) => (
+                      <section className="route-group" key={group.id}>
+                        <div className="route-group__heading">
+                          <h4>{group.label}</h4>
+                          {editRoutes && (
+                            <button
+                              type="button"
+                              aria-label={`Ajouter une voie pour ${group.label}`}
+                              onClick={() => setRouteDraft(routeSort === 'relay'
+                                ? { relayId: group.id }
+                                : { gradeId: group.id })}
+                            >+</button>
+                          )}
+                        </div>
+                        {group.routes.length > 0 ? (
+                          <div className="route-grid">
+                            {group.routes.map((route) => editRoutes ? (
+                              <RouteEditor
+                                key={route.id}
+                                route={route}
+                                relays={relays}
+                                colors={colors}
+                                grades={grades}
+                                compact
+                                onChanged={loadTopo}
+                                onMessage={setMessage}
+                              />
+                            ) : (
+                              <RouteCard key={route.id} route={route} />
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="route-group__empty">Aucune voie</p>
+                        )}
+                      </section>
+                    ))}
                   </div>
-                  <div>
-                    <p>Couleur</p>
-                    <strong>{route.color.name}</strong>
-                  </div>
-                  <div className="grade">{route.grade.label}</div>
-                </article>
+                </section>
               ))}
             </div>
           )}
@@ -248,6 +363,62 @@ export default function App() {
       </main>
 
     </div>
+  )
+}
+
+function RouteModal({ onClose, ...routeFormProps }: {
+  activeSeason: Season | null
+  relays: Relay[]
+  colors: Color[]
+  grades: Grade[]
+  initialRelayId?: string
+  initialGradeId?: string
+  onClose: () => void
+  onChanged: () => Promise<void>
+  onMessage: (message: Message) => void
+}) {
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+    document.body.style.overflow = 'hidden'
+    window.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [onClose])
+
+  return createPortal(
+    <div className="modal-backdrop" onMouseDown={(event) => {
+      if (event.target === event.currentTarget) onClose()
+    }}>
+      <section className="modal" role="dialog" aria-modal="true" aria-labelledby="route-modal-title">
+        <button className="modal__close" type="button" aria-label="Fermer" onClick={onClose}>×</button>
+        <RouteForm {...routeFormProps} onCancel={onClose} titleId="route-modal-title" />
+      </section>
+    </div>,
+    document.body,
+  )
+}
+
+function RouteCard({ route }: { route: Route }) {
+  return (
+    <article className="route-card">
+      <div
+        className="route-card__color"
+        style={{ backgroundColor: route.color.hex }}
+        role="img"
+        aria-label={`Couleur ${route.color.name}`}
+      />
+      <div className="route-card__relay">
+        <p>Relais</p>
+        <strong>{route.relay.number}</strong>
+        {route.isHalfRoute && <span className="half-route-badge">1/2 voie</span>}
+      </div>
+      <div className="grade" aria-label={`Cotation ${route.grade.label}`}>{route.grade.label}</div>
+    </article>
   )
 }
 
@@ -275,6 +446,89 @@ function FilterSelect({
   )
 }
 
+function ColorFilter({ colors, value, onChange }: {
+  colors: Color[]
+  value: string
+  onChange: (value: string) => void
+}) {
+  const detailsRef = useRef<HTMLDetailsElement>(null)
+  const selectedColor = colors.find((color) => color.id === value) ?? null
+
+  useEffect(() => {
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      if (detailsRef.current && !detailsRef.current.contains(event.target as Node)) {
+        detailsRef.current.open = false
+      }
+    }
+    document.addEventListener('mousedown', closeOnOutsideClick)
+    return () => document.removeEventListener('mousedown', closeOnOutsideClick)
+  }, [])
+
+  function select(colorId: string) {
+    onChange(colorId)
+    if (detailsRef.current) detailsRef.current.open = false
+  }
+
+  return (
+    <div className="color-filter">
+      <span>Couleur</span>
+      <details ref={detailsRef} className="color-filter__dropdown">
+        <summary aria-label={selectedColor ? `Couleur sélectionnée : ${selectedColor.name}` : 'Toutes les couleurs'}>
+          <span
+            className={selectedColor ? 'color-filter__selected' : 'color-filter__selected color-filter__all'}
+            style={selectedColor ? { backgroundColor: selectedColor.hex } : undefined}
+          >{selectedColor ? '' : '×'}</span>
+          <span className="color-filter__chevron" aria-hidden="true">⌄</span>
+        </summary>
+        <div className="color-filter__menu">
+          <button
+            className="color-filter__all"
+            type="button"
+            title="Toutes les couleurs"
+            aria-label="Toutes les couleurs"
+            aria-pressed={value === ''}
+            onClick={() => select('')}
+          >×</button>
+          {colors.map((color) => (
+            <button
+              key={color.id}
+              type="button"
+              title={color.name}
+              aria-label={`Filtrer par la couleur ${color.name}`}
+              aria-pressed={value === color.id}
+              style={{ backgroundColor: color.hex }}
+              onClick={() => select(color.id)}
+            />
+          ))}
+        </div>
+      </details>
+    </div>
+  )
+}
+
+type ActionIconName = 'save' | 'edit' | 'delete'
+
+function ActionIcon({ name }: { name: ActionIconName }) {
+  if (name === 'save') {
+    return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3h13l3 3v15H4V3Zm3 2v5h9V5H7Zm0 9v5h10v-5H7Z" /></svg>
+  }
+  if (name === 'edit') {
+    return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 16 11-11 4 4L8 20H4v-4Zm12.5-8.5-9.8 9.8v1h1l9.8-9.8-1-1Z" /></svg>
+  }
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3h8l1 2h4v2H3V5h4l1-2Zm-2 6h12l-1 12H7L6 9Zm3 2v7h2v-7H9Zm4 0v7h2v-7h-2Z" /></svg>
+}
+
+function ActionButton({ icon, label, className = '', ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  icon: ActionIconName
+  label: string
+}) {
+  return (
+    <button className={`icon-action ${className}`.trim()} title={label} aria-label={label} {...props}>
+      <ActionIcon name={icon} />
+    </button>
+  )
+}
+
 function AdminPage({
   user,
   isAdmin,
@@ -283,7 +537,6 @@ function AdminPage({
   relays,
   colors,
   grades,
-  routes,
   message,
   onClose,
   onChanged,
@@ -296,7 +549,6 @@ function AdminPage({
   relays: Relay[]
   colors: Color[]
   grades: Grade[]
-  routes: Route[]
   message: Message
   onClose: () => void
   onChanged: () => Promise<void>
@@ -341,7 +593,7 @@ function AdminPage({
         <div>
           <p className="eyebrow">Topopote · gestion du mur</p>
           <h1 id="admin-title" className="admin-title">Administration</h1>
-          <p className="intro">Crée les saisons, les référentiels et les voies du topo.</p>
+          <p className="intro">Gère les saisons et les référentiels du topo.</p>
         </div>
         <button className="button button--dark" type="button" onClick={onClose}>Retour au topo</button>
       </header>
@@ -382,23 +634,7 @@ function AdminPage({
               <button type="button" onClick={signOut}>Se déconnecter</button>
             </div>
             <SeasonManager seasons={seasons} onChanged={onChanged} onMessage={onMessage} />
-            <RouteForm seasons={seasons} relays={relays} colors={colors} grades={grades} onChanged={onChanged} onMessage={onMessage} />
-            <ReferenceForms zones={zones} onChanged={onChanged} onMessage={onMessage} />
-            <div>
-              <h3>Voies enregistrées</h3>
-              <div className="admin-list">
-                {routes.map((route) => (
-                  <div key={route.id}>
-                    <span>{route.season.name} · {route.relay.zone.name} · Relais {route.relay.number} · {route.color.name} · {route.grade.label}</span>
-                    <button type="button" onClick={async () => {
-                      const { error } = await supabase!.from('voies').delete().eq('id', route.id)
-                      if (error) onMessage({ kind: 'error', text: error.message })
-                      else await onChanged()
-                    }}>Supprimer</button>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <ReferenceForms zones={zones} relays={relays} colors={colors} grades={grades} onChanged={onChanged} onMessage={onMessage} />
           </div>
         )}
         </section>
@@ -407,38 +643,143 @@ function AdminPage({
   )
 }
 
-function RouteForm({ seasons, relays, colors, grades, onChanged, onMessage }: {
-  seasons: Season[]
+function RouteForm({ activeSeason, relays, colors, grades, initialRelayId, initialGradeId, onCancel, onChanged, onMessage, titleId }: {
+  activeSeason: Season | null
   relays: Relay[]
   colors: Color[]
   grades: Grade[]
+  initialRelayId?: string
+  initialGradeId?: string
+  onCancel: () => void
   onChanged: () => Promise<void>
   onMessage: (message: Message) => void
+  titleId?: string
 }) {
-  const [seasonId, setSeasonId] = useState(seasons.find((season) => season.active)?.id ?? '')
-  const [relayId, setRelayId] = useState('')
+  const [relayId, setRelayId] = useState(initialRelayId ?? '')
   const [colorId, setColorId] = useState('')
-  const [gradeId, setGradeId] = useState('')
+  const [gradeId, setGradeId] = useState(initialGradeId ?? '')
+  const [isHalfRoute, setIsHalfRoute] = useState(false)
 
   async function submit(event: FormEvent) {
     event.preventDefault()
-    const { error } = await supabase!.from('voies').insert({ saison_id: seasonId, relais_id: relayId, couleur_id: colorId, cotation_id: gradeId })
+    if (!activeSeason) return onMessage({ kind: 'error', text: 'Active une saison avant d’ajouter une voie.' })
+    const { error } = await supabase!.from('voies').insert({
+      saison_id: activeSeason.id,
+      relais_id: relayId,
+      couleur_id: colorId,
+      cotation_id: gradeId,
+      demi_voie: isHalfRoute,
+    })
     if (error) return onMessage({ kind: 'error', text: error.message })
     onMessage({ kind: 'success', text: 'La voie a été ajoutée.' })
     await onChanged()
   }
 
   return (
-    <form className="stack" onSubmit={submit}>
-      <h3>Ajouter une voie</h3>
+    <form className="route-create-form stack" onSubmit={submit}>
+      <h3 id={titleId}>Ajouter une voie</h3>
+      <p className="form-context">Saison active : <strong>{activeSeason?.name ?? 'aucune'}</strong></p>
       <div className="form-grid">
-        <label><span>Saison</span><select required value={seasonId} onChange={(event) => setSeasonId(event.target.value)}><option value="">Choisir</option>{seasons.map((season) => <option key={season.id} value={season.id}>{season.name}{season.active ? ' · actuelle' : ''}</option>)}</select></label>
-        <label><span>Relais</span><select required value={relayId} onChange={(event) => setRelayId(event.target.value)}><option value="">Choisir</option>{relays.map((relay) => <option key={relay.id} value={relay.id}>{relay.number}</option>)}</select></label>
-        <label><span>Couleur</span><select required value={colorId} onChange={(event) => setColorId(event.target.value)}><option value="">Choisir</option>{colors.map((color) => <option key={color.id} value={color.id}>{color.name}</option>)}</select></label>
-        <label><span>Cotation</span><select required value={gradeId} onChange={(event) => setGradeId(event.target.value)}><option value="">Choisir</option>{grades.map((grade) => <option key={grade.id} value={grade.id}>{grade.label}</option>)}</select></label>
+        <label><span>Relais</span><select autoFocus required value={relayId} onChange={(event) => setRelayId(event.target.value)}><option value="">Choisir</option>{relays.map((relay) => <option key={relay.id} value={relay.id}>{relay.number} · {relay.zone.name}</option>)}</select></label>
+        <ColorPicker colors={colors} value={colorId} onChange={setColorId} />
+        <label><span>Cotation</span><select required value={gradeId} onChange={(event) => setGradeId(event.target.value)}><option value="">Choisir</option>{grades.map((grade) => <option key={grade.id} value={grade.id}>{grade.label} · {grade.difficulty}</option>)}</select></label>
+        <label className="checkbox-label"><input type="checkbox" checked={isHalfRoute} onChange={(event) => setIsHalfRoute(event.target.checked)} /><span>1/2 voie</span></label>
       </div>
-      <button className="button button--accent">Enregistrer la voie</button>
+      <div className="admin-actions">
+        <ActionButton className="button button--accent" icon="save" label="Enregistrer la voie" disabled={!activeSeason} />
+        <button className="button" type="button" onClick={onCancel}>Annuler</button>
+      </div>
     </form>
+  )
+}
+
+function ColorPicker({ colors, value, onChange }: { colors: Color[]; value: string; onChange: (value: string) => void }) {
+  const inputName = useId()
+  return (
+    <fieldset className="color-picker">
+      <legend>Couleur</legend>
+      <div className="color-picker__choices">
+        {colors.map((color) => (
+          <label className="color-choice" key={color.id} title={color.name}>
+            <input
+              type="radio"
+              name={inputName}
+              value={color.id}
+              checked={value === color.id}
+              onChange={() => onChange(color.id)}
+              required
+              aria-label={color.name}
+            />
+            <span style={{ backgroundColor: color.hex }} aria-hidden="true" />
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  )
+}
+
+function RouteEditor({ route, relays, colors, grades, compact = false, onChanged, onMessage }: {
+  route: Route
+  relays: Relay[]
+  colors: Color[]
+  grades: Grade[]
+  compact?: boolean
+  onChanged: () => Promise<void>
+  onMessage: (message: Message) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [relayId, setRelayId] = useState(route.relayId)
+  const [colorId, setColorId] = useState(route.colorId)
+  const [gradeId, setGradeId] = useState(route.gradeId)
+  const [isHalfRoute, setIsHalfRoute] = useState(route.isHalfRoute)
+
+  async function save(event: FormEvent) {
+    event.preventDefault()
+    const { error } = await supabase!.from('voies').update({
+      relais_id: relayId,
+      couleur_id: colorId,
+      cotation_id: gradeId,
+      demi_voie: isHalfRoute,
+    }).eq('id', route.id)
+    if (error) return onMessage({ kind: 'error', text: error.message })
+    onMessage({ kind: 'success', text: 'La voie a été modifiée.' })
+    setEditing(false)
+    await onChanged()
+  }
+
+  async function remove() {
+    if (!window.confirm(`Supprimer la voie du relais ${route.relay.number} ?`)) return
+    const { error } = await supabase!.from('voies').delete().eq('id', route.id)
+    if (error) return onMessage({ kind: 'error', text: error.message })
+    onMessage({ kind: 'success', text: 'La voie a été supprimée.' })
+    await onChanged()
+  }
+
+  if (editing) {
+    return (
+      <form className="admin-route-card admin-route-card--editing" onSubmit={save}>
+        <div className="form-grid">
+          <label><span>Relais</span><select required value={relayId} onChange={(event) => setRelayId(event.target.value)}>{relays.map((relay) => <option key={relay.id} value={relay.id}>{relay.number} · {relay.zone.name}</option>)}</select></label>
+          <ColorPicker colors={colors} value={colorId} onChange={setColorId} />
+          <label><span>Cotation</span><select required value={gradeId} onChange={(event) => setGradeId(event.target.value)}>{grades.map((grade) => <option key={grade.id} value={grade.id}>{grade.label} · {grade.difficulty}</option>)}</select></label>
+          <label className="checkbox-label"><input type="checkbox" checked={isHalfRoute} onChange={(event) => setIsHalfRoute(event.target.checked)} /><span>1/2 voie</span></label>
+        </div>
+        <div className="admin-actions">
+          <ActionButton className="button button--small button--accent" icon="save" label="Enregistrer les modifications" type="submit" />
+          <button className="button button--small" type="button" onClick={() => setEditing(false)}>Annuler</button>
+        </div>
+      </form>
+    )
+  }
+
+  return (
+    <article className={`editable-route ${compact ? 'editable-route--compact' : ''}`}>
+      <RouteCard route={route} />
+      <div className="admin-actions">
+        <ActionButton icon="edit" label="Modifier la voie" type="button" onClick={() => setEditing(true)} />
+        <ActionButton className="danger-action" icon="delete" label="Supprimer la voie" type="button" onClick={() => void remove()} />
+      </div>
+    </article>
   )
 }
 
@@ -447,6 +788,7 @@ function SeasonManager({ seasons, onChanged, onMessage }: {
   onChanged: () => Promise<void>
   onMessage: (message: Message) => void
 }) {
+  const [adding, setAdding] = useState(false)
   const [name, setName] = useState('')
   const [active, setActive] = useState(seasons.length === 0)
 
@@ -459,6 +801,7 @@ function SeasonManager({ seasons, onChanged, onMessage }: {
     if (error) return onMessage({ kind: 'error', text: error.message })
     setName('')
     setActive(false)
+    setAdding(false)
     onMessage({ kind: 'success', text: 'La saison a été ajoutée.' })
     await onChanged()
   }
@@ -470,19 +813,35 @@ function SeasonManager({ seasons, onChanged, onMessage }: {
     await onChanged()
   }
 
+  async function remove(season: Season) {
+    if (!window.confirm(`Supprimer la saison « ${season.name} » ?`)) return
+    const { error } = await supabase!.from('saisons').delete().eq('id', season.id)
+    if (error) return onMessage({ kind: 'error', text: error.message })
+    onMessage({ kind: 'success', text: 'La saison a été supprimée.' })
+    await onChanged()
+  }
+
   return (
     <div className="stack">
-      <h3>Gérer les saisons</h3>
-      <form className="form-grid form-grid--season" onSubmit={submit}>
-        <label><span>Nom</span><input placeholder="Automne 2026" required value={name} onChange={(event) => setName(event.target.value)} /></label>
-        <label className="checkbox-label"><input type="checkbox" checked={active} onChange={(event) => setActive(event.target.checked)} /><span>Saison active</span></label>
-        <button className="button button--accent">Ajouter la saison</button>
-      </form>
+      <div className="manager-heading">
+        <h3>Saisons</h3>
+        <button className="add-button" type="button" aria-label="Ajouter une saison" onClick={() => setAdding((current) => !current)}>+</button>
+      </div>
+      {adding && (
+        <form className="form-grid form-grid--season inline-create" onSubmit={submit}>
+          <label><span>Nom</span><input placeholder="Automne 2026" required value={name} onChange={(event) => setName(event.target.value)} /></label>
+          <label className="checkbox-label"><input type="checkbox" checked={active} onChange={(event) => setActive(event.target.checked)} /><span>Saison active</span></label>
+          <button className="button button--accent">Ajouter la saison</button>
+        </form>
+      )}
       <div className="admin-list">
         {seasons.map((season) => (
           <div key={season.id}>
             <span>{season.name}{season.active ? ' · active' : ''}</span>
-            {!season.active && <button type="button" onClick={() => void activate(season.id)}>Activer</button>}
+            <div className="row-actions">
+              {!season.active && <button type="button" onClick={() => void activate(season.id)}>Activer</button>}
+              <ActionButton className="danger-action" icon="delete" label={`Supprimer la saison ${season.name}`} type="button" onClick={() => void remove(season)} />
+            </div>
           </div>
         ))}
       </div>
@@ -490,48 +849,253 @@ function SeasonManager({ seasons, onChanged, onMessage }: {
   )
 }
 
-function ReferenceForms({ zones, onChanged, onMessage }: { zones: Zone[]; onChanged: () => Promise<void>; onMessage: (message: Message) => void }) {
+function ReferenceForms({ zones, relays, colors, grades, onChanged, onMessage }: {
+  zones: Zone[]
+  relays: Relay[]
+  colors: Color[]
+  grades: Grade[]
+  onChanged: () => Promise<void>
+  onMessage: (message: Message) => void
+}) {
+  const [adding, setAdding] = useState<'zone' | 'relay' | 'color' | 'grade' | null>(null)
   const [zoneName, setZoneName] = useState('')
-  const [zoneOrder, setZoneOrder] = useState('')
   const [relayNumber, setRelayNumber] = useState('')
   const [relayZoneId, setRelayZoneId] = useState('')
   const [colorName, setColorName] = useState('')
   const [colorHex, setColorHex] = useState('#ffde59')
   const [gradeLabel, setGradeLabel] = useState('')
-  const [gradeRank, setGradeRank] = useState('')
 
-  async function insert(table: 'zones' | 'relais' | 'couleurs' | 'cotations', values: Record<string, string | number>) {
+  async function insert(table: 'relais' | 'couleurs', values: Record<string, string | number>) {
     const { error } = await supabase!.from(table).insert(values)
-    if (error) return onMessage({ kind: 'error', text: error.message })
+    if (error) {
+      onMessage({ kind: 'error', text: error.message })
+      return false
+    }
     onMessage({ kind: 'success', text: 'Référentiel mis à jour.' })
+    setAdding(null)
+    await onChanged()
+    return true
+  }
+
+  async function addZone(event: FormEvent) {
+    event.preventDefault()
+    const { error } = await supabase!.rpc('ajouter_zone', { p_nom: zoneName })
+    if (error) return onMessage({ kind: 'error', text: error.message })
+    setZoneName('')
+    setAdding(null)
+    onMessage({ kind: 'success', text: 'La zone a été ajoutée.' })
+    await onChanged()
+  }
+
+  async function addGrade(event: FormEvent) {
+    event.preventDefault()
+    const { error } = await supabase!.rpc('ajouter_cotation', { p_libelle: gradeLabel })
+    if (error) return onMessage({ kind: 'error', text: error.message })
+    setGradeLabel('')
+    setAdding(null)
+    onMessage({ kind: 'success', text: 'La cotation a été ajoutée.' })
     await onChanged()
   }
 
   return (
-    <div>
-      <h3>Compléter les référentiels</h3>
-      <div className="reference-grid">
-        <form onSubmit={(event) => { event.preventDefault(); void insert('zones', { nom: zoneName, ordre: Number(zoneOrder) }); setZoneName(''); setZoneOrder('') }}>
-          <label><span>Nom de zone</span><input placeholder="Zone verticale" required value={zoneName} onChange={(event) => setZoneName(event.target.value)} /></label>
-          <label><span>Ordre d’affichage</span><input type="number" min="1" required value={zoneOrder} onChange={(event) => setZoneOrder(event.target.value)} /></label>
-          <button className="button button--small">Ajouter</button>
-        </form>
-        <form onSubmit={(event) => { event.preventDefault(); void insert('relais', { numero: Number(relayNumber), zone_id: relayZoneId }); setRelayNumber('') }}>
-          <label><span>N° de relais</span><input type="number" min="1" required value={relayNumber} onChange={(event) => setRelayNumber(event.target.value)} /></label>
-          <label><span>Zone</span><select required value={relayZoneId} onChange={(event) => setRelayZoneId(event.target.value)}><option value="">Choisir</option>{zones.map((zone) => <option key={zone.id} value={zone.id}>{zone.name}</option>)}</select></label>
-          <button className="button button--small">Ajouter</button>
-        </form>
-        <form onSubmit={(event) => { event.preventDefault(); void insert('couleurs', { nom: colorName, hex: colorHex }); setColorName('') }}>
-          <label><span>Couleur</span><input required value={colorName} onChange={(event) => setColorName(event.target.value)} /></label>
-          <label><span>Teinte</span><input type="color" value={colorHex} onChange={(event) => setColorHex(event.target.value)} /></label>
-          <button className="button button--small">Ajouter</button>
-        </form>
-        <form onSubmit={(event) => { event.preventDefault(); void insert('cotations', { libelle: gradeLabel, rang: Number(gradeRank) }); setGradeLabel(''); setGradeRank('') }}>
-          <label><span>Cotation</span><input placeholder="7a+" required value={gradeLabel} onChange={(event) => setGradeLabel(event.target.value)} /></label>
-          <label><span>Ordre</span><input type="number" min="1" required value={gradeRank} onChange={(event) => setGradeRank(event.target.value)} /></label>
-          <button className="button button--small">Ajouter</button>
-        </form>
+    <div className="stack">
+      <h3>Modifier les référentiels</h3>
+      <div className="reference-editors">
+        <section>
+          <div className="manager-heading">
+            <h4>Zones et ordre d’affichage</h4>
+            <button className="add-button" type="button" aria-label="Ajouter une zone" onClick={() => setAdding(adding === 'zone' ? null : 'zone')}>+</button>
+          </div>
+          {adding === 'zone' && (
+            <form className="inline-create" onSubmit={addZone}>
+              <label><span>Nom de zone</span><input placeholder="Zone verticale" required value={zoneName} onChange={(event) => setZoneName(event.target.value)} /></label>
+              <button className="button button--small">Ajouter</button>
+            </form>
+          )}
+          {zones.map((zone) => <ZoneReferenceEditor key={zone.id} zone={zone} onChanged={onChanged} onMessage={onMessage} />)}
+        </section>
+        <section>
+          <div className="manager-heading">
+            <h4>Relais</h4>
+            <button className="add-button" type="button" aria-label="Ajouter un relais" onClick={() => setAdding(adding === 'relay' ? null : 'relay')}>+</button>
+          </div>
+          {adding === 'relay' && (
+            <form className="inline-create" onSubmit={async (event) => {
+              event.preventDefault()
+              if (await insert('relais', { numero: Number(relayNumber), zone_id: relayZoneId })) setRelayNumber('')
+            }}>
+              <label><span>N° de relais</span><input type="number" min="1" required value={relayNumber} onChange={(event) => setRelayNumber(event.target.value)} /></label>
+              <label><span>Zone</span><select required value={relayZoneId} onChange={(event) => setRelayZoneId(event.target.value)}><option value="">Choisir</option>{zones.map((zone) => <option key={zone.id} value={zone.id}>{zone.name}</option>)}</select></label>
+              <button className="button button--small">Ajouter</button>
+            </form>
+          )}
+          {relays.map((relay) => <RelayReferenceEditor key={relay.id} relay={relay} zones={zones} onChanged={onChanged} onMessage={onMessage} />)}
+        </section>
+        <section>
+          <div className="manager-heading">
+            <h4>Couleurs</h4>
+            <button className="add-button" type="button" aria-label="Ajouter une couleur" onClick={() => setAdding(adding === 'color' ? null : 'color')}>+</button>
+          </div>
+          {adding === 'color' && (
+            <form className="inline-create" onSubmit={async (event) => {
+              event.preventDefault()
+              if (await insert('couleurs', { nom: colorName, hex: colorHex })) setColorName('')
+            }}>
+              <label><span>Couleur</span><input required value={colorName} onChange={(event) => setColorName(event.target.value)} /></label>
+              <label><span>Teinte</span><input type="color" value={colorHex} onChange={(event) => setColorHex(event.target.value)} /></label>
+              <button className="button button--small">Ajouter</button>
+            </form>
+          )}
+          {colors.map((color) => <ColorReferenceEditor key={color.id} color={color} onChanged={onChanged} onMessage={onMessage} />)}
+        </section>
+        <section>
+          <div className="manager-heading">
+            <h4>Cotations</h4>
+            <button className="add-button" type="button" aria-label="Ajouter une cotation" onClick={() => setAdding(adding === 'grade' ? null : 'grade')}>+</button>
+          </div>
+          {adding === 'grade' && (
+            <form className="inline-create" onSubmit={addGrade}>
+              <label><span>Cotation</span><input placeholder="7a+" required value={gradeLabel} onChange={(event) => setGradeLabel(event.target.value)} /></label>
+              <button className="button button--small">Ajouter</button>
+            </form>
+          )}
+          {grades.map((grade) => <GradeReferenceEditor key={grade.id} grade={grade} onChanged={onChanged} onMessage={onMessage} />)}
+        </section>
       </div>
     </div>
+  )
+}
+
+type ReferenceEditorProps = {
+  onChanged: () => Promise<void>
+  onMessage: (message: Message) => void
+}
+
+function ZoneReferenceEditor({ zone, onChanged, onMessage }: ReferenceEditorProps & { zone: Zone }) {
+  const [name, setName] = useState(zone.name)
+  const [order, setOrder] = useState(String(zone.order))
+
+  async function save(event: FormEvent) {
+    event.preventDefault()
+    const { error } = await supabase!.rpc('modifier_zone', { p_zone_id: zone.id, p_nom: name, p_nouvel_ordre: Number(order) })
+    if (error) return onMessage({ kind: 'error', text: error.message })
+    onMessage({ kind: 'success', text: 'La zone et son ordre ont été modifiés.' })
+    await onChanged()
+  }
+
+  async function remove() {
+    if (!window.confirm(`Supprimer la zone « ${zone.name} » ?`)) return
+    const { error } = await supabase!.rpc('supprimer_zone', { p_zone_id: zone.id })
+    if (error) return onMessage({ kind: 'error', text: error.message })
+    onMessage({ kind: 'success', text: 'La zone a été supprimée.' })
+    await onChanged()
+  }
+
+  return (
+    <form className="reference-editor" onSubmit={save}>
+      <label><span>Nom</span><input required value={name} onChange={(event) => setName(event.target.value)} /></label>
+      <label><span>Ordre</span><input type="number" min="1" required value={order} onChange={(event) => setOrder(event.target.value)} /></label>
+      <div className="row-actions">
+        <ActionButton icon="save" label="Enregistrer la zone" type="submit" />
+        <ActionButton className="danger-action" icon="delete" label={`Supprimer la zone ${zone.name}`} type="button" onClick={() => void remove()} />
+      </div>
+    </form>
+  )
+}
+
+function RelayReferenceEditor({ relay, zones, onChanged, onMessage }: ReferenceEditorProps & { relay: Relay; zones: Zone[] }) {
+  const [number, setNumber] = useState(String(relay.number))
+  const [zoneId, setZoneId] = useState(relay.zoneId)
+
+  async function save(event: FormEvent) {
+    event.preventDefault()
+    const { error } = await supabase!.from('relais').update({ numero: Number(number), zone_id: zoneId }).eq('id', relay.id)
+    if (error) return onMessage({ kind: 'error', text: error.message })
+    onMessage({ kind: 'success', text: 'Le relais a été modifié.' })
+    await onChanged()
+  }
+
+  async function remove() {
+    if (!window.confirm(`Supprimer le relais ${relay.number} ?`)) return
+    const { error } = await supabase!.from('relais').delete().eq('id', relay.id)
+    if (error) return onMessage({ kind: 'error', text: error.message })
+    onMessage({ kind: 'success', text: 'Le relais a été supprimé.' })
+    await onChanged()
+  }
+
+  return (
+    <form className="reference-editor" onSubmit={save}>
+      <label><span>N°</span><input type="number" min="1" required value={number} onChange={(event) => setNumber(event.target.value)} /></label>
+      <label><span>Zone</span><select required value={zoneId} onChange={(event) => setZoneId(event.target.value)}>{zones.map((zone) => <option key={zone.id} value={zone.id}>{zone.name}</option>)}</select></label>
+      <div className="row-actions">
+        <ActionButton icon="save" label="Enregistrer le relais" type="submit" />
+        <ActionButton className="danger-action" icon="delete" label={`Supprimer le relais ${relay.number}`} type="button" onClick={() => void remove()} />
+      </div>
+    </form>
+  )
+}
+
+function ColorReferenceEditor({ color, onChanged, onMessage }: ReferenceEditorProps & { color: Color }) {
+  const [name, setName] = useState(color.name)
+  const [hex, setHex] = useState(color.hex)
+
+  async function save(event: FormEvent) {
+    event.preventDefault()
+    const { error } = await supabase!.from('couleurs').update({ nom: name, hex }).eq('id', color.id)
+    if (error) return onMessage({ kind: 'error', text: error.message })
+    onMessage({ kind: 'success', text: 'La couleur a été modifiée.' })
+    await onChanged()
+  }
+
+  async function remove() {
+    if (!window.confirm(`Supprimer la couleur « ${color.name} » ?`)) return
+    const { error } = await supabase!.from('couleurs').delete().eq('id', color.id)
+    if (error) return onMessage({ kind: 'error', text: error.message })
+    onMessage({ kind: 'success', text: 'La couleur a été supprimée.' })
+    await onChanged()
+  }
+
+  return (
+    <form className="reference-editor reference-editor--color" onSubmit={save}>
+      <label><span>Nom</span><input required value={name} onChange={(event) => setName(event.target.value)} /></label>
+      <label><span>Teinte</span><input type="color" value={hex} onChange={(event) => setHex(event.target.value)} /></label>
+      <div className="row-actions">
+        <ActionButton icon="save" label="Enregistrer la couleur" type="submit" />
+        <ActionButton className="danger-action" icon="delete" label={`Supprimer la couleur ${color.name}`} type="button" onClick={() => void remove()} />
+      </div>
+    </form>
+  )
+}
+
+function GradeReferenceEditor({ grade, onChanged, onMessage }: ReferenceEditorProps & { grade: Grade }) {
+  const [label, setLabel] = useState(grade.label)
+  const [rank, setRank] = useState(String(grade.rank))
+
+  async function save(event: FormEvent) {
+    event.preventDefault()
+    const { error } = await supabase!.rpc('modifier_cotation', { p_cotation_id: grade.id, p_libelle: label, p_nouveau_rang: Number(rank) })
+    if (error) return onMessage({ kind: 'error', text: error.message })
+    onMessage({ kind: 'success', text: 'La cotation et son ordre ont été modifiés.' })
+    await onChanged()
+  }
+
+  async function remove() {
+    if (!window.confirm(`Supprimer la cotation « ${grade.label} » ?`)) return
+    const { error } = await supabase!.rpc('supprimer_cotation', { p_cotation_id: grade.id })
+    if (error) return onMessage({ kind: 'error', text: error.message })
+    onMessage({ kind: 'success', text: 'La cotation a été supprimée.' })
+    await onChanged()
+  }
+
+  return (
+    <form className="reference-editor" onSubmit={save}>
+      <label><span>Cotation</span><input required value={label} onChange={(event) => setLabel(event.target.value)} /></label>
+      <label><span>Ordre</span><input type="number" min="1" required value={rank} onChange={(event) => setRank(event.target.value)} /></label>
+      <div className="reference-editor__difficulty"><small>Difficulté</small><strong>{grade.difficulty}</strong></div>
+      <div className="row-actions">
+        <ActionButton icon="save" label="Enregistrer la cotation" type="submit" />
+        <ActionButton className="danger-action" icon="delete" label={`Supprimer la cotation ${grade.label}`} type="button" onClick={() => void remove()} />
+      </div>
+    </form>
   )
 }
