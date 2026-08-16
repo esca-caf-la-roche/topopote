@@ -10,9 +10,11 @@
 
 ## Modèle de données
 
-`voies` référence trois tables indépendantes : `relais`, `couleurs` et `cotations`. Le champ `rang` des cotations garantit un tri métier fiable : un tri alphabétique ne suffit pas pour comparer `6c+`, `7a` et `7a+`.
+`voies` référence une `saison`, un `relais`, une `couleur` et une `cotation`. Chaque relais référence une `zone`. Le champ `rang` des cotations garantit un tri métier fiable : un tri alphabétique ne suffit pas pour comparer `6c+`, `7a` et `7a+`.
 
-Les lectures du topo et des référentiels sont publiques. Toute écriture est protégée côté base par RLS et dépend de la présence de l’utilisateur dans `administrateurs`. Masquer les boutons dans React n’est donc jamais la barrière de sécurité.
+Une seule saison peut être active. Son activation désactive l’ancienne dans la même transaction grâce à un trigger, tout en conservant les voies historiques. Les zones portent également un ordre explicite pour obtenir un affichage stable.
+
+Les lectures du topo et des référentiels sont publiques. Toute écriture est protégée côté base par RLS et dépend de la présence de l’utilisateur dans `administrateurs`. Le contrôle privilégié est isolé dans le schéma non exposé `private`. Masquer les boutons dans React n’est donc jamais la barrière de sécurité.
 
 ## Authentification
 

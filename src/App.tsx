@@ -2,7 +2,7 @@ import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react
 import type { User } from '@supabase/supabase-js'
 import { emptyFilters, filterRoutes } from './lib/routes'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
-import type { Color, Grade, Relay, Route, RouteFilters } from './types'
+import type { Color, Grade, Relay, Route, RouteFilters, Season, Zone } from './types'
 
 type Message = { kind: 'error' | 'success'; text: string } | null
 
@@ -14,6 +14,8 @@ function relation<T>(value: T | T[] | null): T {
 
 export default function App() {
   const [routes, setRoutes] = useState<Route[]>([])
+  const [seasons, setSeasons] = useState<Season[]>([])
+  const [zones, setZones] = useState<Zone[]>([])
   const [relays, setRelays] = useState<Relay[]>([])
   const [colors, setColors] = useState<Color[]>([])
   const [grades, setGrades] = useState<Grade[]>([])
@@ -28,19 +30,21 @@ export default function App() {
     if (!supabase) return
     setLoading(true)
 
-    const [routesResult, relaysResult, colorsResult, gradesResult] = await Promise.all([
+    const [routesResult, seasonsResult, zonesResult, relaysResult, colorsResult, gradesResult] = await Promise.all([
       supabase
         .from('voies')
         .select(
-          'id, relais_id, couleur_id, cotation_id, relais:relais(id, numero), couleur:couleurs(id, nom, hex), cotation:cotations(id, libelle, rang)',
+          'id, saison_id, relais_id, couleur_id, cotation_id, saison:saisons(id, nom, date_debut, date_fin, active), relais:relais(id, numero, zone_id, zone:zones(id, nom, ordre)), couleur:couleurs(id, nom, hex), cotation:cotations(id, libelle, rang)',
         ),
-      supabase.from('relais').select('id, numero').order('numero'),
+      supabase.from('saisons').select('id, nom, date_debut, date_fin, active').order('date_debut', { ascending: false }),
+      supabase.from('zones').select('id, nom, ordre').order('ordre'),
+      supabase.from('relais').select('id, numero, zone_id, zone:zones(id, nom, ordre)').order('numero'),
       supabase.from('couleurs').select('id, nom, hex').order('nom'),
       supabase.from('cotations').select('id, libelle, rang').order('rang'),
     ])
 
     const error =
-      routesResult.error || relaysResult.error || colorsResult.error || gradesResult.error
+      routesResult.error || seasonsResult.error || zonesResult.error || relaysResult.error || colorsResult.error || gradesResult.error
     if (error) {
       setMessage({ kind: 'error', text: `Impossible de charger le topo : ${error.message}` })
       setLoading(false)
@@ -49,27 +53,51 @@ export default function App() {
 
     const mappedRoutes = (routesResult.data ?? []).map((row) => {
       const relay = relation(row.relais)
+      const season = relation(row.saison)
+      const zone = relation(relay.zone)
       const color = relation(row.couleur)
       const grade = relation(row.cotation)
       return {
         id: row.id,
+        seasonId: row.saison_id,
         relayId: row.relais_id,
         colorId: row.couleur_id,
         gradeId: row.cotation_id,
-        relay: { id: relay.id, number: relay.numero },
+        season: { id: season.id, name: season.nom, startDate: season.date_debut, endDate: season.date_fin, active: season.active },
+        relay: {
+          id: relay.id,
+          number: relay.numero,
+          zoneId: relay.zone_id,
+          zone: { id: zone.id, name: zone.nom, order: zone.ordre },
+        },
         color: { id: color.id, name: color.nom, hex: color.hex },
         grade: { id: grade.id, label: grade.libelle, rank: grade.rang },
       }
     })
 
     setRoutes(mappedRoutes)
-    setRelays((relaysResult.data ?? []).map((row) => ({ id: row.id, number: row.numero })))
+    const mappedSeasons = (seasonsResult.data ?? []).map((row) => ({ id: row.id, name: row.nom, startDate: row.date_debut, endDate: row.date_fin, active: row.active }))
+    setSeasons(mappedSeasons)
+    setZones((zonesResult.data ?? []).map((row) => ({ id: row.id, name: row.nom, order: row.ordre })))
+    setRelays((relaysResult.data ?? []).map((row) => {
+      const zone = relation(row.zone)
+      return {
+        id: row.id,
+        number: row.numero,
+        zoneId: row.zone_id,
+        zone: { id: zone.id, name: zone.nom, order: zone.ordre },
+      }
+    }))
     setColors(
       (colorsResult.data ?? []).map((row) => ({ id: row.id, name: row.nom, hex: row.hex })),
     )
     setGrades(
       (gradesResult.data ?? []).map((row) => ({ id: row.id, label: row.libelle, rank: row.rang })),
     )
+    setFilters((current) => ({
+      ...current,
+      seasonId: current.seasonId || mappedSeasons.find((season) => season.active)?.id || mappedSeasons[0]?.id || '',
+    }))
     setLoading(false)
   }, [])
 
@@ -80,8 +108,12 @@ export default function App() {
       return
     }
 
-    const { data } = await supabase.rpc('est_admin')
-    setIsAdmin(data === true)
+    const { data } = await supabase
+      .from('administrateurs')
+      .select('user_id')
+      .eq('user_id', nextUser.id)
+      .maybeSingle()
+    setIsAdmin(Boolean(data))
   }, [])
 
   useEffect(() => {
@@ -104,7 +136,7 @@ export default function App() {
           <p className="eyebrow">Mur d’escalade · Saint-Pierre-en-Faucigny</p>
           <h1>topopote</h1>
           <p className="hero-tagline">Le topo sans prise de tête.</p>
-          <p className="intro">Trouve une voie par relais, couleur ou cotation.</p>
+          <p className="intro">Trouve une voie par saison, zone, relais, couleur ou cotation.</p>
         </div>
         <button className="button button--dark" type="button" onClick={() => setShowAdmin(true)}>
           {isAdmin ? 'Gérer le topo' : 'Espace admin'}
@@ -122,11 +154,28 @@ export default function App() {
       <main>
         <section className="filters" aria-label="Filtres du topo">
           <FilterSelect
+            label="Saison"
+            value={filters.seasonId}
+            onChange={(seasonId) => setFilters((current) => ({ ...current, seasonId }))}
+            allLabel="Toutes les saisons"
+          >
+            {seasons.map((season) => <option key={season.id} value={season.id}>{season.name}{season.active ? ' · actuelle' : ''}</option>)}
+          </FilterSelect>
+          <FilterSelect
+            label="Zone"
+            value={filters.zoneId}
+            onChange={(zoneId) => setFilters((current) => ({ ...current, zoneId, relayId: '' }))}
+          >
+            {zones.map((zone) => <option key={zone.id} value={zone.id}>{zone.name}</option>)}
+          </FilterSelect>
+          <FilterSelect
             label="Relais"
             value={filters.relayId}
             onChange={(relayId) => setFilters((current) => ({ ...current, relayId }))}
           >
-            {relays.map((relay) => <option key={relay.id} value={relay.id}>Relais {relay.number}</option>)}
+            {relays
+              .filter((relay) => !filters.zoneId || relay.zoneId === filters.zoneId)
+              .map((relay) => <option key={relay.id} value={relay.id}>Relais {relay.number}</option>)}
           </FilterSelect>
           <FilterSelect
             label="Couleur"
@@ -166,6 +215,10 @@ export default function App() {
                     <strong>{route.relay.number}</strong>
                   </div>
                   <div>
+                    <p>Zone</p>
+                    <strong>{route.relay.zone.name}</strong>
+                  </div>
+                  <div>
                     <p>Couleur</p>
                     <strong>{route.color.name}</strong>
                   </div>
@@ -181,6 +234,8 @@ export default function App() {
         <AdminPanel
           user={user}
           isAdmin={isAdmin}
+          seasons={seasons}
+          zones={zones}
           relays={relays}
           colors={colors}
           grades={grades}
@@ -199,17 +254,19 @@ function FilterSelect({
   value,
   onChange,
   children,
+  allLabel = 'Tous',
 }: {
   label: string
   value: string
   onChange: (value: string) => void
   children: React.ReactNode
+  allLabel?: string
 }) {
   return (
     <label>
       <span>{label}</span>
       <select value={value} onChange={(event) => onChange(event.target.value)}>
-        <option value="">Tous</option>
+        <option value="">{allLabel}</option>
         {children}
       </select>
     </label>
@@ -219,6 +276,8 @@ function FilterSelect({
 function AdminPanel({
   user,
   isAdmin,
+  seasons,
+  zones,
   relays,
   colors,
   grades,
@@ -229,6 +288,8 @@ function AdminPanel({
 }: {
   user: User | null
   isAdmin: boolean
+  seasons: Season[]
+  zones: Zone[]
   relays: Relay[]
   colors: Color[]
   grades: Grade[]
@@ -308,14 +369,15 @@ function AdminPanel({
               <span>{user.email}</span>
               <button type="button" onClick={signOut}>Se déconnecter</button>
             </div>
-            <RouteForm relays={relays} colors={colors} grades={grades} onChanged={onChanged} onMessage={onMessage} />
-            <ReferenceForms onChanged={onChanged} onMessage={onMessage} />
+            <SeasonManager seasons={seasons} onChanged={onChanged} onMessage={onMessage} />
+            <RouteForm seasons={seasons} relays={relays} colors={colors} grades={grades} onChanged={onChanged} onMessage={onMessage} />
+            <ReferenceForms zones={zones} onChanged={onChanged} onMessage={onMessage} />
             <div>
               <h3>Voies enregistrées</h3>
               <div className="admin-list">
                 {routes.map((route) => (
                   <div key={route.id}>
-                    <span>Relais {route.relay.number} · {route.color.name} · {route.grade.label}</span>
+                    <span>{route.season.name} · {route.relay.zone.name} · Relais {route.relay.number} · {route.color.name} · {route.grade.label}</span>
                     <button type="button" onClick={async () => {
                       const { error } = await supabase!.from('voies').delete().eq('id', route.id)
                       if (error) onMessage({ kind: 'error', text: error.message })
@@ -332,20 +394,22 @@ function AdminPanel({
   )
 }
 
-function RouteForm({ relays, colors, grades, onChanged, onMessage }: {
+function RouteForm({ seasons, relays, colors, grades, onChanged, onMessage }: {
+  seasons: Season[]
   relays: Relay[]
   colors: Color[]
   grades: Grade[]
   onChanged: () => Promise<void>
   onMessage: (message: Message) => void
 }) {
+  const [seasonId, setSeasonId] = useState(seasons.find((season) => season.active)?.id ?? '')
   const [relayId, setRelayId] = useState('')
   const [colorId, setColorId] = useState('')
   const [gradeId, setGradeId] = useState('')
 
   async function submit(event: FormEvent) {
     event.preventDefault()
-    const { error } = await supabase!.from('voies').insert({ relais_id: relayId, couleur_id: colorId, cotation_id: gradeId })
+    const { error } = await supabase!.from('voies').insert({ saison_id: seasonId, relais_id: relayId, couleur_id: colorId, cotation_id: gradeId })
     if (error) return onMessage({ kind: 'error', text: error.message })
     onMessage({ kind: 'success', text: 'La voie a été ajoutée.' })
     await onChanged()
@@ -355,6 +419,7 @@ function RouteForm({ relays, colors, grades, onChanged, onMessage }: {
     <form className="stack" onSubmit={submit}>
       <h3>Ajouter une voie</h3>
       <div className="form-grid">
+        <label><span>Saison</span><select required value={seasonId} onChange={(event) => setSeasonId(event.target.value)}><option value="">Choisir</option>{seasons.map((season) => <option key={season.id} value={season.id}>{season.name}{season.active ? ' · actuelle' : ''}</option>)}</select></label>
         <label><span>Relais</span><select required value={relayId} onChange={(event) => setRelayId(event.target.value)}><option value="">Choisir</option>{relays.map((relay) => <option key={relay.id} value={relay.id}>{relay.number}</option>)}</select></label>
         <label><span>Couleur</span><select required value={colorId} onChange={(event) => setColorId(event.target.value)}><option value="">Choisir</option>{colors.map((color) => <option key={color.id} value={color.id}>{color.name}</option>)}</select></label>
         <label><span>Cotation</span><select required value={gradeId} onChange={(event) => setGradeId(event.target.value)}><option value="">Choisir</option>{grades.map((grade) => <option key={grade.id} value={grade.id}>{grade.label}</option>)}</select></label>
@@ -364,14 +429,73 @@ function RouteForm({ relays, colors, grades, onChanged, onMessage }: {
   )
 }
 
-function ReferenceForms({ onChanged, onMessage }: { onChanged: () => Promise<void>; onMessage: (message: Message) => void }) {
+function SeasonManager({ seasons, onChanged, onMessage }: {
+  seasons: Season[]
+  onChanged: () => Promise<void>
+  onMessage: (message: Message) => void
+}) {
+  const [name, setName] = useState('')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+  const [active, setActive] = useState(seasons.length === 0)
+
+  async function submit(event: FormEvent) {
+    event.preventDefault()
+    const { error } = await supabase!.from('saisons').insert({
+      nom: name,
+      date_debut: startDate,
+      date_fin: endDate || null,
+      active,
+    })
+    if (error) return onMessage({ kind: 'error', text: error.message })
+    setName('')
+    setStartDate('')
+    setEndDate('')
+    setActive(false)
+    onMessage({ kind: 'success', text: 'La saison a été ajoutée.' })
+    await onChanged()
+  }
+
+  async function activate(seasonId: string) {
+    const { error } = await supabase!.from('saisons').update({ active: true }).eq('id', seasonId)
+    if (error) return onMessage({ kind: 'error', text: error.message })
+    onMessage({ kind: 'success', text: 'La saison active a été mise à jour.' })
+    await onChanged()
+  }
+
+  return (
+    <div className="stack">
+      <h3>Gérer les saisons</h3>
+      <form className="form-grid form-grid--season" onSubmit={submit}>
+        <label><span>Nom</span><input placeholder="Automne 2026" required value={name} onChange={(event) => setName(event.target.value)} /></label>
+        <label><span>Début</span><input type="date" required value={startDate} onChange={(event) => setStartDate(event.target.value)} /></label>
+        <label><span>Fin facultative</span><input type="date" min={startDate} value={endDate} onChange={(event) => setEndDate(event.target.value)} /></label>
+        <label className="checkbox-label"><input type="checkbox" checked={active} onChange={(event) => setActive(event.target.checked)} /><span>Saison active</span></label>
+        <button className="button button--accent">Ajouter la saison</button>
+      </form>
+      <div className="admin-list">
+        {seasons.map((season) => (
+          <div key={season.id}>
+            <span>{season.name} · depuis le {new Date(`${season.startDate}T00:00:00`).toLocaleDateString('fr-FR')}{season.active ? ' · active' : ''}</span>
+            {!season.active && <button type="button" onClick={() => void activate(season.id)}>Activer</button>}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function ReferenceForms({ zones, onChanged, onMessage }: { zones: Zone[]; onChanged: () => Promise<void>; onMessage: (message: Message) => void }) {
+  const [zoneName, setZoneName] = useState('')
+  const [zoneOrder, setZoneOrder] = useState('')
   const [relayNumber, setRelayNumber] = useState('')
+  const [relayZoneId, setRelayZoneId] = useState('')
   const [colorName, setColorName] = useState('')
   const [colorHex, setColorHex] = useState('#ffde59')
   const [gradeLabel, setGradeLabel] = useState('')
   const [gradeRank, setGradeRank] = useState('')
 
-  async function insert(table: 'relais' | 'couleurs' | 'cotations', values: Record<string, string | number>) {
+  async function insert(table: 'zones' | 'relais' | 'couleurs' | 'cotations', values: Record<string, string | number>) {
     const { error } = await supabase!.from(table).insert(values)
     if (error) return onMessage({ kind: 'error', text: error.message })
     onMessage({ kind: 'success', text: 'Référentiel mis à jour.' })
@@ -382,8 +506,14 @@ function ReferenceForms({ onChanged, onMessage }: { onChanged: () => Promise<voi
     <div>
       <h3>Compléter les référentiels</h3>
       <div className="reference-grid">
-        <form onSubmit={(event) => { event.preventDefault(); void insert('relais', { numero: Number(relayNumber) }); setRelayNumber('') }}>
+        <form onSubmit={(event) => { event.preventDefault(); void insert('zones', { nom: zoneName, ordre: Number(zoneOrder) }); setZoneName(''); setZoneOrder('') }}>
+          <label><span>Nom de zone</span><input placeholder="Zone verticale" required value={zoneName} onChange={(event) => setZoneName(event.target.value)} /></label>
+          <label><span>Ordre d’affichage</span><input type="number" min="1" required value={zoneOrder} onChange={(event) => setZoneOrder(event.target.value)} /></label>
+          <button className="button button--small">Ajouter</button>
+        </form>
+        <form onSubmit={(event) => { event.preventDefault(); void insert('relais', { numero: Number(relayNumber), zone_id: relayZoneId }); setRelayNumber('') }}>
           <label><span>N° de relais</span><input type="number" min="1" required value={relayNumber} onChange={(event) => setRelayNumber(event.target.value)} /></label>
+          <label><span>Zone</span><select required value={relayZoneId} onChange={(event) => setRelayZoneId(event.target.value)}><option value="">Choisir</option>{zones.map((zone) => <option key={zone.id} value={zone.id}>{zone.name}</option>)}</select></label>
           <button className="button button--small">Ajouter</button>
         </form>
         <form onSubmit={(event) => { event.preventDefault(); void insert('couleurs', { nom: colorName, hex: colorHex }); setColorName('') }}>

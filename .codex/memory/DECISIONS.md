@@ -13,3 +13,6 @@
 - Keep topo reads public and protect all writes with database RLS.
 - Use email OTP codes only. The client prevents sign-up and the email template contains `{{ .Token }}` rather than a magic link.
 - Keep stable route identifiers so personal sessions can reference routes in phase two.
+- Keep all seasonal route sets instead of overwriting routes during the twice-yearly renewal.
+- Allow exactly one active season and select it by default in the public topo.
+- Attach each relay to an ordered zone; zones describe stable physical wall sections.

@@ -17,4 +17,4 @@
 
 ## Data flow
 
-Public clients read `voies`, `relais`, `couleurs`, and `cotations`. Authenticated users can write only when their `auth.users.id` exists in `administrateurs`; this is enforced by RLS.
+Public clients read `saisons`, `zones`, `voies`, `relais`, `couleurs`, and `cotations`. Each route belongs to a season, and each relay belongs to a zone. Authenticated users can write only when their `auth.users.id` exists in `administrateurs`; this is enforced by RLS through a helper in the non-exposed `private` schema.

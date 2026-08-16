@@ -18,8 +18,12 @@ npm.cmd run build
 ## Supabase
 
 ```powershell
-supabase link --project-ref VOTRE_REFERENCE
+supabase link --project-ref cxasxpzfeydwnzvpdtkf
+supabase db push --linked --dry-run
 supabase db push
+supabase migration list --linked
+supabase db advisors --linked --type security
+supabase db advisors --linked --type performance
 ```
 
 ## Repository inspection

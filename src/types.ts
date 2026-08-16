@@ -1,6 +1,22 @@
+export type Zone = {
+  id: string
+  name: string
+  order: number
+}
+
+export type Season = {
+  id: string
+  name: string
+  startDate: string
+  endDate: string | null
+  active: boolean
+}
+
 export type Relay = {
   id: string
   number: number
+  zoneId: string
+  zone: Zone
 }
 
 export type Color = {
@@ -17,15 +33,19 @@ export type Grade = {
 
 export type Route = {
   id: string
+  seasonId: string
   relayId: string
   colorId: string
   gradeId: string
+  season: Season
   relay: Relay
   color: Color
   grade: Grade
 }
 
 export type RouteFilters = {
+  seasonId: string
+  zoneId: string
   relayId: string
   colorId: string
   gradeId: string
