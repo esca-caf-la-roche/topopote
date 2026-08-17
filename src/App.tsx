@@ -1,7 +1,7 @@
 import { type FormEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { createPortal } from 'react-dom'
-import { completedRouteCount, emptyFilters, filterRoutes, gradeDistribution } from './lib/routes'
+import { completedRouteCount, emptyFilters, filterRoutes, gradeDistribution, relaysForZone } from './lib/routes'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
 import ClimberArea from './ClimberArea'
 import FriendsArea from './FriendsArea'
@@ -51,7 +51,7 @@ export default function App() {
   const [page, setPage] = useState(() => window.location.hash.replace('#', ''))
   const [routeSort, setRouteSort] = useState<RouteSort>('relay')
   const [editRoutes, setEditRoutes] = useState(false)
-  const [routeDraft, setRouteDraft] = useState<{ relayId?: string; gradeId?: string } | null>(null)
+  const [routeDraft, setRouteDraft] = useState<{ relayId?: string; gradeId?: string; colorId?: string } | null>(null)
   const [showDistributionDetails, setShowDistributionDetails] = useState(false)
   const [distributionView, setDistributionView] = useState<DistributionView>('grade')
   const [selectedRoute, setSelectedRoute] = useState<RouteSelection | null>(null)
@@ -210,6 +210,7 @@ export default function App() {
   }, [])
 
   const activeSeasonId = seasons.find((season) => season.active)?.id ?? null
+  const routeFormRelays = useMemo(() => relaysForZone(relays, filters.zoneId), [filters.zoneId, relays])
   const visibleRoutes = useMemo(
     () => filterRoutes(routes, filters, activeSeasonId, routeSort),
     [routes, filters, activeSeasonId, routeSort],
@@ -266,11 +267,12 @@ export default function App() {
   )
   const routesByZone = useMemo(
     () => zones
+      .filter((zone) => !filters.zoneId || zone.id === filters.zoneId)
       .map((zone) => {
         const zoneRoutes = visibleRoutes.filter((route) => route.relay.zoneId === zone.id)
         const references = routeSort === 'relay'
-          ? relays.filter((relay) => relay.zoneId === zone.id)
-          : grades
+          ? relays.filter((relay) => relay.zoneId === zone.id && (!filters.relayId || relay.id === filters.relayId))
+          : grades.filter((grade) => !filters.gradeId || grade.id === filters.gradeId)
         const groups = references
           .map((reference) => ({
             id: reference.id,
@@ -283,7 +285,7 @@ export default function App() {
         return { zone, groups, routeCount: zoneRoutes.length }
       })
       .filter((group) => group.routeCount > 0 || editRoutes),
-    [editRoutes, grades, relays, routeSort, visibleRoutes, zones],
+    [editRoutes, filters.gradeId, filters.relayId, filters.zoneId, grades, relays, routeSort, visibleRoutes, zones],
   )
   const closeSelectedRoute = useCallback(() => setSelectedRoute(null), [])
 
@@ -599,10 +601,7 @@ export default function App() {
                   type="button"
                   aria-pressed={editRoutes}
                   onClick={() => {
-                    setEditRoutes((current) => {
-                      if (!current) setFilters(emptyFilters)
-                      return !current
-                    })
+                    setEditRoutes((current) => !current)
                     setRouteDraft(null)
                   }}
                 >
@@ -610,7 +609,11 @@ export default function App() {
                 </button>
               )}
               {editRoutes && (
-                <button className="button button--accent" type="button" onClick={() => setRouteDraft({})}>
+                <button className="button button--accent" type="button" onClick={() => setRouteDraft({
+                  relayId: filters.relayId || undefined,
+                  gradeId: filters.gradeId || undefined,
+                  colorId: filters.colorId || undefined,
+                })}>
                   + Ajouter une voie
                 </button>
               )}
@@ -619,13 +622,14 @@ export default function App() {
           </div>
           {routeDraft && (
             <RouteModal
-              key={`${routeDraft.relayId ?? ''}-${routeDraft.gradeId ?? ''}`}
+              key={`${routeDraft.relayId ?? ''}-${routeDraft.gradeId ?? ''}-${routeDraft.colorId ?? ''}`}
               activeSeason={seasons.find((season) => season.active) ?? null}
-              relays={relays}
+              relays={routeFormRelays}
               colors={colors}
               grades={grades}
               initialRelayId={routeDraft.relayId}
               initialGradeId={routeDraft.gradeId}
+              initialColorId={routeDraft.colorId}
               onClose={() => setRouteDraft(null)}
               onChanged={async () => {
                 await loadTopo()
@@ -655,9 +659,11 @@ export default function App() {
                             <button
                               type="button"
                               aria-label={`Ajouter une voie pour ${group.label}`}
-                              onClick={() => setRouteDraft(routeSort === 'relay'
-                                ? { relayId: group.id }
-                                : { gradeId: group.id })}
+                              onClick={() => setRouteDraft({
+                                relayId: routeSort === 'relay' ? group.id : filters.relayId || undefined,
+                                gradeId: routeSort === 'grade' ? group.id : filters.gradeId || undefined,
+                                colorId: filters.colorId || undefined,
+                              })}
                             >+</button>
                           )}
                         </div>
@@ -750,6 +756,7 @@ function RouteModal({ onClose, ...routeFormProps }: {
   grades: Grade[]
   initialRelayId?: string
   initialGradeId?: string
+  initialColorId?: string
   onClose: () => void
   onChanged: () => Promise<void>
   onMessage: (message: Message) => void
@@ -1173,20 +1180,21 @@ function PractitionerManager({ onMessage }: { onMessage: (message: Message) => v
   )
 }
 
-function RouteForm({ activeSeason, relays, colors, grades, initialRelayId, initialGradeId, onCancel, onChanged, onMessage, titleId }: {
+function RouteForm({ activeSeason, relays, colors, grades, initialRelayId, initialGradeId, initialColorId, onCancel, onChanged, onMessage, titleId }: {
   activeSeason: Season | null
   relays: Relay[]
   colors: Color[]
   grades: Grade[]
   initialRelayId?: string
   initialGradeId?: string
+  initialColorId?: string
   onCancel: () => void
   onChanged: () => Promise<void>
   onMessage: (message: Message) => void
   titleId?: string
 }) {
   const [relayId, setRelayId] = useState(initialRelayId ?? '')
-  const [colorId, setColorId] = useState('')
+  const [colorId, setColorId] = useState(initialColorId ?? '')
   const [gradeId, setGradeId] = useState(initialGradeId ?? '')
   const [isHalfRoute, setIsHalfRoute] = useState(false)
   const { pending, run } = usePendingAction()

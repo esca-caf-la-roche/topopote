@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { completedRouteCount, emptyFilters, filterRoutes, gradeDistribution } from './routes'
-import type { Route } from '../types'
+import { completedRouteCount, emptyFilters, filterRoutes, gradeDistribution, relaysForZone } from './routes'
+import type { Relay, Route } from '../types'
 
 const routes: Route[] = [
   {
@@ -153,5 +153,21 @@ describe('filterRoutes', () => {
 describe('completedRouteCount', () => {
   it('counts only completed routes in the displayed selection', () => {
     expect(completedRouteCount(routes.slice(0, 2), new Set(['hard', 'other-relay']))).toBe(1)
+  })
+})
+
+describe('relaysForZone', () => {
+  const relays: Relay[] = [
+    { id: 'r1', number: 1, zoneId: 'slab', zone: { id: 'slab', name: 'Dalle', order: 1 } },
+    { id: 'r2', number: 2, zoneId: 'slab', zone: { id: 'slab', name: 'Dalle', order: 1 } },
+    { id: 'r3', number: 3, zoneId: 'overhang', zone: { id: 'overhang', name: 'Dévers', order: 2 } },
+  ]
+
+  it('limits route creation choices to the selected zone', () => {
+    expect(relaysForZone(relays, 'slab').map(({ id }) => id)).toEqual(['r1', 'r2'])
+  })
+
+  it('keeps every relay when no zone is selected', () => {
+    expect(relaysForZone(relays, '')).toEqual(relays)
   })
 })

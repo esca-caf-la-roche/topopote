@@ -1,4 +1,4 @@
-import type { Grade, Route, RouteFilters, RouteSort } from '../types'
+import type { Grade, Relay, Route, RouteFilters, RouteSort } from '../types'
 
 export type GradeDistribution = {
   label: string
@@ -16,6 +16,10 @@ export const emptyFilters: RouteFilters = {
   gradeId: '',
   difficulty: '',
   showHalfRoutes: true,
+}
+
+export function relaysForZone(relays: Relay[], zoneId: string): Relay[] {
+  return zoneId ? relays.filter((relay) => relay.zoneId === zoneId) : relays
 }
 
 export function filterRoutes(
