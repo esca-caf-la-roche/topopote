@@ -3,9 +3,36 @@ import type { User } from '@supabase/supabase-js'
 import { ascentPoints, MAX_SCORING_ASCENTS, SCORING_VERSION, seasonScore, styleLabels } from './lib/scoring'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
 import PrimaryNav from './PrimaryNav'
+import { profileErrorMessage } from './lib/databaseErrors'
 import type { Ascent, AscentStyle, ClimberProfile, GradeFeeling, LeaderboardEntry, Route, Season } from './types'
 
 type Feedback = { kind: 'error' | 'success'; text: string } | null
+const pendingOtpEmailKey = 'topopote.pendingOtpEmail'
+
+function readPendingOtpEmail() {
+  try {
+    return window.sessionStorage.getItem(pendingOtpEmailKey) ?? ''
+  } catch {
+    return ''
+  }
+}
+
+function savePendingOtpEmail(email: string) {
+  try {
+    window.sessionStorage.setItem(pendingOtpEmailKey, email)
+  } catch {
+    // The OTP form still works when session storage is unavailable.
+  }
+}
+
+function clearPendingOtpEmail() {
+  try {
+    window.sessionStorage.removeItem(pendingOtpEmailKey)
+  } catch {
+    // Nothing else is required when session storage is unavailable.
+  }
+}
+
 type LeaderboardRow = {
   rang: number | string
   pseudo: string
@@ -23,10 +50,11 @@ function localDate() {
   const pad = (value: number) => String(value).padStart(2, '0')
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
 }
-export default function ClimberArea({ page, user, isAdmin, authLoading, routes, seasons, onSignOut }: {
+export default function ClimberArea({ page, user, isAdmin, isOpener, authLoading, routes, seasons, onSignOut }: {
   page: 'carnet' | 'classement'
   user: User | null
   isAdmin: boolean
+  isOpener: boolean
   authLoading: boolean
   routes: Route[]
   seasons: Season[]
@@ -93,7 +121,7 @@ export default function ClimberArea({ page, user, isAdmin, authLoading, routes, 
 
   return (
     <div className="site-shell">
-      <PrimaryNav page={page} authenticated={Boolean(user)} isAdmin={isAdmin} loading={authLoading} onSignOut={onSignOut} />
+      <PrimaryNav page={page} authenticated={Boolean(user)} isAdmin={isAdmin} isOpener={isOpener} loading={authLoading} onSignOut={onSignOut} />
       <header className={`hero hero--${page}`}>
         <div className="hero__content">
           <p className="eyebrow">Topopote · saison par saison</p>
@@ -116,16 +144,20 @@ export default function ClimberArea({ page, user, isAdmin, authLoading, routes, 
 }
 
 function AuthPanel({ onFeedback }: { onFeedback: (feedback: Feedback) => void }) {
-  const [email, setEmail] = useState(''); const [otp, setOtp] = useState(''); const [sent, setSent] = useState(false); const [busy, setBusy] = useState(false)
+  const pendingEmail = readPendingOtpEmail()
+  const [email, setEmail] = useState(pendingEmail); const [otp, setOtp] = useState(''); const [sent, setSent] = useState(Boolean(pendingEmail)); const [busy, setBusy] = useState(false)
   async function submit(event: FormEvent) {
     event.preventDefault(); setBusy(true)
     const { error } = sent ? await supabase!.auth.verifyOtp({ email, token: otp, type: 'email' }) : await supabase!.auth.signInWithOtp({ email, options: { shouldCreateUser: true } })
     setBusy(false)
     if (error) return onFeedback({ kind: 'error', text: error.message })
-    if (!sent) { setSent(true); onFeedback({ kind: 'success', text: 'Code envoyé. Consulte ta boîte mail.' }) }
-    else onFeedback({ kind: 'success', text: 'Bienvenue dans Topopote !' })
+    if (!sent) { savePendingOtpEmail(email); setSent(true); onFeedback({ kind: 'success', text: 'Code envoyé. Consulte ta boîte mail.' }) }
+    else { clearPendingOtpEmail(); onFeedback({ kind: 'success', text: 'Bienvenue dans Topopote !' }) }
   }
-  return <main className="climber-page"><section className="auth-card"><p className="section-kicker">Pratiquant</p><h2>Connexion ou inscription</h2><p>Un code à 6 chiffres suffit. Aucun mot de passe à retenir.</p><form className="stack" onSubmit={submit}><label><span>Adresse email</span><input type="email" required autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>{sent && <label><span>Code à 6 chiffres</span><input required inputMode="numeric" pattern="[0-9]{6}" autoComplete="one-time-code" value={otp} onChange={(event) => setOtp(event.target.value)} /></label>}<button className="button button--accent" disabled={busy}>{busy ? 'Patiente…' : sent ? 'Valider le code' : 'Recevoir mon code'}</button></form></section></main>
+  function changeEmail() {
+    clearPendingOtpEmail(); setSent(false); setOtp(''); onFeedback(null)
+  }
+  return <main className="climber-page"><section className="auth-card"><p className="section-kicker">Pratiquant</p><h2>Connexion ou inscription</h2><p>Un code à 6 chiffres suffit. Aucun mot de passe à retenir.</p><form className="stack" onSubmit={submit}><label><span>Adresse email</span><input type="email" required autoComplete="email" value={email} disabled={sent} onChange={(event) => setEmail(event.target.value)} /></label>{sent && <><label><span>Code à 6 chiffres</span><input required inputMode="numeric" pattern="[0-9]{6}" autoComplete="one-time-code" value={otp} onChange={(event) => setOtp(event.target.value)} /></label><button className="button button--light" type="button" onClick={changeEmail}>Changer d’adresse email</button></>}<button className="button button--accent" disabled={busy}>{busy ? 'Patiente…' : sent ? 'Valider le code' : 'Recevoir mon code'}</button></form></section></main>
 }
 
 function ProfileSetup({ user, onCreated, onFeedback }: { user: User; onCreated: () => Promise<void>; onFeedback: (feedback: Feedback) => void }) {
@@ -133,7 +165,7 @@ function ProfileSetup({ user, onCreated, onFeedback }: { user: User; onCreated: 
   async function submit(event: FormEvent) {
     event.preventDefault()
     const { error } = await supabase!.from('profils').insert({ user_id: user.id, pseudo: nickname.trim(), classement_public: publicRanking, partage_activite: shareActivity })
-    if (error) return onFeedback({ kind: 'error', text: error.message })
+    if (error) return onFeedback({ kind: 'error', text: profileErrorMessage(error) })
     onFeedback({ kind: 'success', text: 'Ton profil est prêt. À toi de grimper !' }); await onCreated()
   }
   return <main className="climber-page"><section className="auth-card auth-card--profile"><p className="section-kicker">Dernière prise</p><h2>Crée ton profil</h2><form className="stack" onSubmit={submit}><label><span>Pseudo</span><input required minLength={2} maxLength={32} value={nickname} onChange={(event) => setNickname(event.target.value)} /></label><label className="checkbox-label"><input type="checkbox" checked={publicRanking} onChange={(event) => setPublicRanking(event.target.checked)} /><span>Apparaître dans le classement public</span></label><label className="checkbox-label"><input type="checkbox" checked={shareActivity} onChange={(event) => setShareActivity(event.target.checked)} /><span>Partager mes enchaînements et commentaires avec les pratiquants connectés</span></label><p className="privacy-note">Ton adresse email n’est jamais affichée. Le partage des enchaînements reste facultatif.</p><button className="button button--accent">Créer mon profil</button></form></section></main>
@@ -162,7 +194,7 @@ function ProfileSettings({ profile, onChanged, onFeedback }: { profile: ClimberP
   async function submit(event: FormEvent) {
     event.preventDefault()
     const { error } = await supabase!.from('profils').update({ pseudo: nickname.trim(), classement_public: publicRanking, partage_activite: shareActivity }).eq('user_id', profile.userId)
-    if (error) return onFeedback({ kind: 'error', text: error.message })
+    if (error) return onFeedback({ kind: 'error', text: profileErrorMessage(error) })
     onFeedback({ kind: 'success', text: 'Préférences du profil enregistrées.' })
     await onChanged()
   }

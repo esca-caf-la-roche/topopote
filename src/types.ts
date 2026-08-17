@@ -102,3 +102,13 @@ export type LeaderboardEntry = {
   redpoint: number
   topRope: number
 }
+
+export type RouteFeedback = {
+  route: Route
+  averageRating: number | null
+  ratingCount: number
+  recommendationCount: number
+  ascentCount: number
+  commentCount: number
+  comments: string[]
+}

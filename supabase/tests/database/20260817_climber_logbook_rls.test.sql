@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(24);
+select plan(35);
 
 select ok(
   not has_table_privilege('anon', 'public.profils', 'select'),
@@ -23,6 +23,14 @@ select ok(
 select ok(
   has_function_privilege('authenticated', 'public.avis_voie(uuid)', 'execute'),
   'authenticated peut appeler le RPC ciblé des avis d’une voie'
+);
+select ok(
+  not has_function_privilege('anon', 'public.retours_ouvreurs()', 'execute'),
+  'anon ne peut pas appeler les retours destinés aux ouvreurs'
+);
+select ok(
+  has_function_privilege('authenticated', 'public.retours_ouvreurs()', 'execute'),
+  'authenticated peut atteindre le contrôle de rôle du RPC ouvreur'
 );
 
 insert into auth.users (
@@ -73,6 +81,12 @@ select lives_ok(
   'les consentements au classement et au partage sont modifiables'
 );
 select throws_ok(
+  $$insert into public.ouvreurs (user_id) values ('00000000-0000-0000-0000-00000000a001')$$,
+  '42501',
+  null,
+  'un pratiquant ne peut pas se promouvoir ouvreur'
+);
+select throws_ok(
   $$insert into public.profils (user_id, pseudo) values ('00000000-0000-0000-0000-00000000b002', 'Profil usurpé')$$,
   '42501',
   null,
@@ -91,6 +105,32 @@ select results_eq(
 select lives_ok(
   $$insert into public.profils (user_id, pseudo) values ('00000000-0000-0000-0000-00000000b002', 'Grimpeur B')$$,
   'le second pratiquant crée son propre profil'
+);
+
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000c003', true);
+select lives_ok(
+  $$insert into public.ouvreurs (user_id) values ('00000000-0000-0000-0000-00000000a001')$$,
+  'un administrateur peut promouvoir un pratiquant ouvreur'
+);
+
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000a001', true);
+select results_eq(
+  $$select count(*)::bigint from public.ouvreurs where user_id = '00000000-0000-0000-0000-00000000a001'$$,
+  $$values (1::bigint)$$,
+  'un ouvreur peut lire son propre rôle'
+);
+
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000b002', true);
+select results_eq(
+  $$select count(*)::bigint from public.ouvreurs$$,
+  $$values (0::bigint)$$,
+  'un pratiquant ne voit pas les rôles des autres comptes'
 );
 
 reset role;
@@ -126,7 +166,30 @@ select is(
 );
 
 set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000a001', true);
+select results_eq(
+  $$select moyenne_note, nombre_notes, nombre_recommandations, nombre_enchainements, nombre_commentaires
+    from public.retours_ouvreurs()
+    where voie_id = '50000000-0000-0000-0000-000000000005'$$,
+  $$values (4.00::numeric, 1::bigint, 0::bigint, 1::bigint, 1::bigint)$$,
+  'un ouvreur reçoit les agrégats consentis de la voie'
+);
+select results_eq(
+  $$select commentaires from public.retours_ouvreurs()
+    where voie_id = '50000000-0000-0000-0000-000000000005'$$,
+  $$values (array['Très belle voie']::text[])$$,
+  'les commentaires consentis sont transmis sans identité'
+);
+
+reset role;
+set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000b002', true);
+select throws_ok(
+  $$select * from public.retours_ouvreurs()$$,
+  '42501',
+  null,
+  'un pratiquant sans rôle ne peut pas consulter les retours ouvreurs'
+);
 select results_eq(
   $$select count(*)::bigint from public.enchainements$$,
   $$values (0::bigint)$$,
@@ -167,6 +230,16 @@ select results_eq(
 );
 
 reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000a001', true);
+select results_eq(
+  $$select nombre_enchainements, nombre_commentaires from public.retours_ouvreurs()
+    where voie_id = '50000000-0000-0000-0000-000000000005'$$,
+  $$values (0::bigint, 0::bigint)$$,
+  'le retrait du consentement retire aussi les agrégats et commentaires de la page ouvreur'
+);
+
+reset role;
 update public.profils
 set partage_activite = true
 where user_id = '00000000-0000-0000-0000-00000000a001';
@@ -179,6 +252,12 @@ select results_eq(
     where voie_id = '50000000-0000-0000-0000-000000000005'$$,
   $$values (1::bigint)$$,
   'un administrateur peut contrôler les carnets'
+);
+select results_eq(
+  $$select count(*)::bigint from public.retours_ouvreurs()
+    where voie_id = '50000000-0000-0000-0000-000000000005'$$,
+  $$values (1::bigint)$$,
+  'un administrateur peut consulter la page de retours sans rôle ouvreur'
 );
 
 reset role;

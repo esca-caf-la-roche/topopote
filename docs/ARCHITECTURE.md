@@ -28,6 +28,6 @@ Le score de base est porté par `cotations.points` et associé automatiquement a
 
 ## Authentification
 
-Le flux administrateur demande un OTP avec `shouldCreateUser: false`. Le flux pratiquant séparé utilise `shouldCreateUser: true`, puis les deux vérifient le code avec `verifyOtp` et le type `email`. Le modèle Supabase doit contenir `{{ .Token }}` et ne doit pas contenir `{{ .ConfirmationURL }}` afin d’envoyer un code au lieu d’un lien magique.
+Le flux administrateur demande un OTP avec `shouldCreateUser: false`. Le flux pratiquant séparé utilise `shouldCreateUser: true`, puis les deux vérifient le code avec `verifyOtp` et le type `email`. Dans Supabase, **Confirm signup** est utilisé à la première connexion d’un pratiquant et **Magic Link** aux connexions suivantes. Ces deux modèles doivent contenir `{{ .Token }}` et ne doivent pas contenir `{{ .ConfirmationURL }}` afin d’envoyer toujours un code plutôt qu’un lien magique.
 
 La page d’administration utilise le fragment `#admin`. Ce routage reste compatible avec un hébergement statique GitHub Pages, permet la navigation avant/arrière du navigateur et évite de dépendre d’une réécriture serveur pour `/admin`.

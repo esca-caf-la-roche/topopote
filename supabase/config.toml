@@ -252,6 +252,12 @@ otp_expiry = 3600
 subject = "Votre code de connexion au topo"
 content_path = "./supabase/templates/magic_link.html"
 
+# A first passwordless login creates the user and sends the confirmation
+# template. Reuse the OTP-only template so sign-up never falls back to a link.
+[auth.email.template.confirmation]
+subject = "Votre code de connexion au topo"
+content_path = "./supabase/templates/magic_link.html"
+
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]
 # enabled = true

@@ -4,8 +4,10 @@ import { createPortal } from 'react-dom'
 import { completedRouteCount, emptyFilters, filterRoutes, gradeDistribution } from './lib/routes'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
 import ClimberArea from './ClimberArea'
+import OpenerFeedbackPage from './OpenerFeedbackPage'
 import PrimaryNav from './PrimaryNav'
 import RouteAscentsModal from './RouteAscentsModal'
+import { resolveAuthenticatedRoles } from './lib/authRoles'
 import { routeAscentBackgrounds } from './lib/routeAscents'
 import { styleLabels } from './lib/scoring'
 import type { AscentStyle, Color, Grade, Relay, Route, RouteFilters, RouteSort, Season, Zone } from './types'
@@ -34,6 +36,7 @@ export default function App() {
   const [message, setMessage] = useState<Message>(null)
   const [user, setUser] = useState<User | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [isOpener, setIsOpener] = useState(false)
   const [authLoading, setAuthLoading] = useState(isSupabaseConfigured)
   const [page, setPage] = useState(() => window.location.hash.replace('#', ''))
   const [routeSort, setRouteSort] = useState<RouteSort>('relay')
@@ -121,44 +124,45 @@ export default function App() {
     setLoading(false)
   }, [])
 
-  const refreshAdmin = useCallback(async (nextUser: User | null) => {
+  const refreshRoles = useCallback(async (nextUser: User | null) => {
     const requestId = ++authRequest.current
     setAuthLoading(true)
     if (!supabase || !nextUser) {
       setUser(null)
       setIsAdmin(false)
+      setIsOpener(false)
       setAuthLoading(false)
       return
     }
 
-    const { data, error } = await supabase
-      .from('administrateurs')
-      .select('user_id')
-      .eq('user_id', nextUser.id)
-      .maybeSingle()
+    const [adminResult, openerResult] = await Promise.all([
+      supabase.from('administrateurs').select('user_id').eq('user_id', nextUser.id).maybeSingle(),
+      supabase.from('ouvreurs').select('user_id').eq('user_id', nextUser.id).maybeSingle(),
+    ])
     if (requestId !== authRequest.current) return
-    if (error) {
-      setUser(null)
-      setIsAdmin(false)
-      setAuthLoading(false)
-      setMessage({ kind: 'error', text: `Impossible de vérifier le compte : ${error.message}` })
-      return
-    }
-    setUser(nextUser)
-    setIsAdmin(Boolean(data))
+
+    // Authentication is established by Supabase Auth. A failed auxiliary role
+    // lookup must restrict that role, never discard a valid user session.
+    const roles = resolveAuthenticatedRoles(nextUser, adminResult, openerResult)
+    setUser(roles.user)
+    setIsAdmin(roles.isAdmin)
+    setIsOpener(roles.isOpener)
     setAuthLoading(false)
+
+    const error = roles.error
+    if (error) setMessage({ kind: 'error', text: `Session ouverte, mais un rôle n’a pas pu être vérifié : ${error.message}` })
   }, [])
 
   useEffect(() => {
     void loadTopo()
     if (!supabase) return
 
-    void supabase.auth.getUser().then(({ data }) => refreshAdmin(data.user))
+    void supabase.auth.getUser().then(({ data }) => refreshRoles(data.user))
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-      void refreshAdmin(session?.user ?? null)
+      void refreshRoles(session?.user ?? null)
     })
     return () => data.subscription.unsubscribe()
-  }, [loadTopo, refreshAdmin])
+  }, [loadTopo, refreshRoles])
 
   const signOut = useCallback(async () => {
     if (!supabase) return
@@ -298,6 +302,7 @@ export default function App() {
       <AdminPage
         user={user}
         isAdmin={isAdmin}
+        isOpener={isOpener}
         authLoading={authLoading}
         seasons={seasons}
         zones={zones}
@@ -312,12 +317,31 @@ export default function App() {
     )
   }
 
+  if (page === 'ouvreurs') {
+    return (
+      <OpenerFeedbackPage
+        user={user}
+        isAdmin={isAdmin}
+        isOpener={isOpener}
+        authLoading={authLoading}
+        routes={routes}
+        seasons={seasons}
+        zones={zones}
+        relays={relays}
+        colors={colors}
+        grades={grades}
+        onSignOut={signOut}
+      />
+    )
+  }
+
   if (page === 'carnet' || page === 'classement') {
     return (
       <ClimberArea
         page={page}
         user={user}
         isAdmin={isAdmin}
+        isOpener={isOpener}
         authLoading={authLoading}
         routes={routes}
         seasons={seasons}
@@ -328,7 +352,7 @@ export default function App() {
 
   return (
     <div className="site-shell">
-      <PrimaryNav page="" authenticated={Boolean(user)} isAdmin={isAdmin} loading={authLoading} onSignOut={signOut} />
+      <PrimaryNav page="" authenticated={Boolean(user)} isAdmin={isAdmin} isOpener={isOpener} loading={authLoading} onSignOut={signOut} />
       <header className="hero">
         <div className="hero__content">
           <h1>TOPOPOTE</h1>
@@ -888,6 +912,7 @@ function ActionButton({ icon, label, className = '', ...props }: React.ButtonHTM
 function AdminPage({
   user,
   isAdmin,
+  isOpener,
   authLoading,
   seasons,
   zones,
@@ -901,6 +926,7 @@ function AdminPage({
 }: {
   user: User | null
   isAdmin: boolean
+  isOpener: boolean
   authLoading: boolean
   seasons: Season[]
   zones: Zone[]
@@ -943,7 +969,7 @@ function AdminPage({
 
   return (
     <div className="site-shell">
-      <PrimaryNav page="admin" authenticated={Boolean(user)} isAdmin={isAdmin} loading={authLoading} onSignOut={onSignOut} />
+      <PrimaryNav page="admin" authenticated={Boolean(user)} isAdmin={isAdmin} isOpener={isOpener} loading={authLoading} onSignOut={onSignOut} />
       <header className="hero hero--admin">
         <div>
           <p className="eyebrow">Topopote · gestion du mur</p>
@@ -1001,17 +1027,19 @@ function AdminPage({
 }
 
 function PractitionerManager({ onMessage }: { onMessage: (message: Message) => void }) {
-  const [profiles, setProfiles] = useState<Array<{ userId: string; nickname: string; publicRanking: boolean; ascentCount: number }>>([])
+  const [profiles, setProfiles] = useState<Array<{ userId: string; nickname: string; publicRanking: boolean; ascentCount: number; isOpener: boolean }>>([])
   const [loading, setLoading] = useState(true)
+  const [updatingUserId, setUpdatingUserId] = useState('')
 
   const load = useCallback(async () => {
     if (!supabase) return
     setLoading(true)
-    const [profilesResult, ascentsResult] = await Promise.all([
+    const [profilesResult, ascentsResult, openersResult] = await Promise.all([
       supabase.from('profils').select('user_id, pseudo, classement_public').order('pseudo'),
       supabase.from('enchainements').select('user_id'),
+      supabase.from('ouvreurs').select('user_id'),
     ])
-    const error = profilesResult.error || ascentsResult.error
+    const error = profilesResult.error || ascentsResult.error || openersResult.error
     if (error) {
       onMessage({ kind: 'error', text: `Pratiquants indisponibles : ${error.message}` })
       setLoading(false)
@@ -1019,16 +1047,33 @@ function PractitionerManager({ onMessage }: { onMessage: (message: Message) => v
     }
     const counts = new Map<string, number>()
     for (const ascent of ascentsResult.data ?? []) counts.set(ascent.user_id, (counts.get(ascent.user_id) ?? 0) + 1)
+    const openerIds = new Set((openersResult.data ?? []).map((opener) => opener.user_id))
     setProfiles((profilesResult.data ?? []).map((profile) => ({
       userId: profile.user_id,
       nickname: profile.pseudo,
       publicRanking: profile.classement_public,
       ascentCount: counts.get(profile.user_id) ?? 0,
+      isOpener: openerIds.has(profile.user_id),
     })))
     setLoading(false)
   }, [onMessage])
 
   useEffect(() => { void load() }, [load])
+
+  async function updateOpener(userId: string, enabled: boolean) {
+    if (!supabase) return
+    setUpdatingUserId(userId)
+    const { error } = enabled
+      ? await supabase.from('ouvreurs').insert({ user_id: userId })
+      : await supabase.from('ouvreurs').delete().eq('user_id', userId)
+    setUpdatingUserId('')
+    if (error) {
+      onMessage({ kind: 'error', text: `Rôle ouvreur non modifié : ${error.message}` })
+      return
+    }
+    onMessage({ kind: 'success', text: enabled ? 'Rôle ouvreur attribué.' : 'Rôle ouvreur retiré.' })
+    await load()
+  }
 
   return (
     <section className="practitioner-manager" aria-labelledby="practitioner-manager-title">
@@ -1046,6 +1091,9 @@ function PractitionerManager({ onMessage }: { onMessage: (message: Message) => v
               <strong>{profile.nickname}</strong>
               <span>{profile.ascentCount} enchaînement{profile.ascentCount > 1 ? 's' : ''}</span>
               <span>{profile.publicRanking ? 'Classement public' : 'Profil privé'}</span>
+              <button className={profile.isOpener ? 'danger-action' : ''} type="button" disabled={updatingUserId === profile.userId} onClick={() => void updateOpener(profile.userId, !profile.isOpener)}>
+                {updatingUserId === profile.userId ? 'Mise à jour…' : profile.isOpener ? 'Retirer ouvreur' : 'Nommer ouvreur'}
+              </button>
             </article>
           ))}
         </div>

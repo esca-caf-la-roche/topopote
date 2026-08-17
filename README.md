@@ -27,7 +27,7 @@ supabase db push
 
 Le dépôt est déjà lié sur la machine de développement. Le dry-run permet de relire les migrations en attente avant toute application.
 
-Dans **Authentication > Email Templates > Magic Link**, remplacer le contenu par celui de `supabase/templates/magic_link.html`. La présence de `{{ .Token }}` envoie le code OTP ; ne pas conserver `{{ .ConfirmationURL }}`, qui enverrait un lien magique.
+Dans **Authentication > Email Templates**, remplacer le contenu des modèles **Confirm signup** et **Magic Link** par celui de `supabase/templates/magic_link.html`. La première connexion d’un pratiquant utilise **Confirm signup**, puis les connexions suivantes utilisent **Magic Link**. La présence de `{{ .Token }}` envoie le code OTP ; ne conserver `{{ .ConfirmationURL }}` dans aucun de ces deux modèles, car il enverrait un lien magique.
 
 Pour les nouveaux projets Free créés après juin 2026, la personnalisation des emails nécessite un SMTP externe. Il se configure dans **Authentication > Email > SMTP Settings** avant d’enregistrer le modèle OTP.
 
