@@ -4,6 +4,7 @@ export type GradeDistribution = {
   label: string
   difficulty: Grade['difficulty']
   count: number
+  completedCount: number
   percentage: number
   rank: number
 }
@@ -50,7 +51,11 @@ function distributionLabel(grade: Grade): string {
   return `${base} / ${base}+`
 }
 
-export function gradeDistribution(routes: Route[], grades: Grade[]): GradeDistribution[] {
+export function gradeDistribution(
+  routes: Route[],
+  grades: Grade[],
+  completedRouteIds: ReadonlySet<string> = new Set(),
+): GradeDistribution[] {
   const distribution = new Map<string, GradeDistribution>()
 
   for (const grade of grades) {
@@ -59,7 +64,7 @@ export function gradeDistribution(routes: Route[], grades: Grade[]): GradeDistri
     if (current) {
       current.rank = Math.min(current.rank, grade.rank)
     } else {
-      distribution.set(label, { label, difficulty: grade.difficulty, count: 0, percentage: 0, rank: grade.rank })
+      distribution.set(label, { label, difficulty: grade.difficulty, count: 0, completedCount: 0, percentage: 0, rank: grade.rank })
     }
   }
 
@@ -68,11 +73,13 @@ export function gradeDistribution(routes: Route[], grades: Grade[]): GradeDistri
     const current = distribution.get(label)
     if (current) {
       current.count += 1
+      current.completedCount += Number(completedRouteIds.has(route.id))
     } else {
       distribution.set(label, {
         label,
         difficulty: route.grade.difficulty,
         count: 1,
+        completedCount: Number(completedRouteIds.has(route.id)),
         percentage: 0,
         rank: route.grade.rank,
       })
@@ -85,4 +92,8 @@ export function gradeDistribution(routes: Route[], grades: Grade[]): GradeDistri
       ...group,
       percentage: routes.length === 0 ? 0 : Math.round((group.count / routes.length) * 100),
     }))
+}
+
+export function completedRouteCount(routes: Route[], completedRouteIds: ReadonlySet<string>): number {
+  return routes.reduce((count, route) => count + Number(completedRouteIds.has(route.id)), 0)
 }

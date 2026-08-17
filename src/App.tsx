@@ -1,7 +1,7 @@
 import { type FormEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { createPortal } from 'react-dom'
-import { emptyFilters, filterRoutes, gradeDistribution } from './lib/routes'
+import { completedRouteCount, emptyFilters, filterRoutes, gradeDistribution } from './lib/routes'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
 import ClimberArea from './ClimberArea'
 import PrimaryNav from './PrimaryNav'
@@ -202,9 +202,14 @@ export default function App() {
     () => filterRoutes(routes, filters, activeSeasonId, routeSort),
     [routes, filters, activeSeasonId, routeSort],
   )
+  const completedRouteIds = useMemo(() => new Set(Object.keys(ownAscents)), [ownAscents])
   const visibleGradeDistribution = useMemo(
-    () => gradeDistribution(visibleRoutes, grades),
-    [grades, visibleRoutes],
+    () => gradeDistribution(visibleRoutes, grades, completedRouteIds),
+    [completedRouteIds, grades, visibleRoutes],
+  )
+  const visibleCompletedRouteCount = useMemo(
+    () => completedRouteCount(visibleRoutes, completedRouteIds),
+    [completedRouteIds, visibleRoutes],
   )
   const visibleGradeDistributionByDifficulty = useMemo(
     () => difficulties.map((difficulty) => {
@@ -216,10 +221,14 @@ export default function App() {
         difficulty,
         groups,
         count,
+        completedCount: completedRouteCount(
+          visibleRoutes.filter((route) => route.grade.difficulty === difficulty),
+          completedRouteIds,
+        ),
         percentage: visibleRoutes.length === 0 ? 0 : Math.round((count / visibleRoutes.length) * 100),
       }
     }).filter((difficulty) => difficulty.percentage > 0),
-    [visibleGradeDistribution, visibleRoutes.length],
+    [completedRouteIds, visibleGradeDistribution, visibleRoutes],
   )
   const visibleZoneDistribution = useMemo(
     () => zones.map((zone) => {
@@ -227,18 +236,21 @@ export default function App() {
       return {
         zone,
         count: zoneRoutes.length,
+        completedCount: completedRouteCount(zoneRoutes, completedRouteIds),
         percentage: visibleRoutes.length === 0 ? 0 : Math.round((zoneRoutes.length / visibleRoutes.length) * 100),
         difficulties: difficulties.map((difficulty) => {
-          const count = zoneRoutes.filter((route) => route.grade.difficulty === difficulty).length
+          const difficultyRoutes = zoneRoutes.filter((route) => route.grade.difficulty === difficulty)
+          const count = difficultyRoutes.length
           return {
             difficulty,
             count,
+            completedCount: completedRouteCount(difficultyRoutes, completedRouteIds),
             percentage: zoneRoutes.length === 0 ? 0 : Math.round((count / zoneRoutes.length) * 100),
           }
         }).filter((difficulty) => difficulty.percentage > 0),
       }
     }).filter((zone) => zone.percentage > 0),
-    [visibleRoutes, zones],
+    [completedRouteIds, visibleRoutes, zones],
   )
   const routesByZone = useMemo(
     () => zones
@@ -441,7 +453,7 @@ export default function App() {
               <h2 id="grade-stats-title">Répartition</h2>
             </div>
             <div className="grade-stats__actions">
-              <p>{visibleRoutes.length} voie{visibleRoutes.length > 1 ? 's' : ''}</p>
+              <p>{user && !authLoading && !topoActivityLoading ? `Mes voies : ${visibleCompletedRouteCount} / ${visibleRoutes.length}` : `${visibleRoutes.length} voie${visibleRoutes.length > 1 ? 's' : ''}`}</p>
               <button
                 className={`grade-stats__view-button ${distributionView === 'grade' ? 'is-active' : ''}`}
                 type="button"
@@ -471,20 +483,20 @@ export default function App() {
           </div>
           {distributionView === 'grade' ? (
             <div className="grade-stats__difficulty-grid" id="distribution-details">
-              {visibleGradeDistributionByDifficulty.map(({ difficulty, groups, count, percentage }) => (
+              {visibleGradeDistributionByDifficulty.map(({ difficulty, groups, count, completedCount, percentage }) => (
                 <section className="grade-stats__difficulty" key={difficulty} aria-labelledby={`difficulty-${difficulty}`}>
                   <div className="grade-stats__difficulty-heading">
                     <h3 id={`difficulty-${difficulty}`}>{difficulty}</h3>
                     <output>{percentage}&nbsp;%</output>
                   </div>
-                  <p>{count} voie{count > 1 ? 's' : ''}</p>
+                  <p>{user && !authLoading && !topoActivityLoading ? `${completedCount} / ${count} de mes voies` : `${count} voie${count > 1 ? 's' : ''}`}</p>
                   {showDistributionDetails && (
                     <ul className="grade-stats__list">
                       {groups.map((group) => (
                         <li key={group.label}>
                           <div className="grade-stats__label">
                             <strong>{group.label}</strong>
-                            <span>{group.count} voie{group.count > 1 ? 's' : ''}</span>
+                            <span>{user && !authLoading && !topoActivityLoading ? `${group.completedCount} / ${group.count}` : `${group.count} voie${group.count > 1 ? 's' : ''}`}</span>
                           </div>
                           <div className="grade-stats__bar" aria-label={`${group.label} : ${group.percentage} % des voies filtrées`}>
                             <span style={{ width: `${group.percentage}%` }} />
@@ -499,20 +511,20 @@ export default function App() {
             </div>
           ) : (
             <div className="grade-stats__zone-grid" id="distribution-details">
-              {visibleZoneDistribution.map(({ zone, count, percentage, difficulties: zoneDifficulties }) => (
+              {visibleZoneDistribution.map(({ zone, count, completedCount, percentage, difficulties: zoneDifficulties }) => (
                 <section className="grade-stats__zone" key={zone.id} aria-labelledby={`stats-zone-${zone.id}`}>
                   <div className="grade-stats__difficulty-heading">
                     <h3 id={`stats-zone-${zone.id}`}>{zone.name}</h3>
                     <output>{percentage}&nbsp;%</output>
                   </div>
-                  <p>{count} voie{count > 1 ? 's' : ''}</p>
+                  <p>{user && !authLoading && !topoActivityLoading ? `${completedCount} / ${count} de mes voies` : `${count} voie${count > 1 ? 's' : ''}`}</p>
                   {showDistributionDetails && (
                     <ul className="grade-stats__list">
                       {zoneDifficulties.map((difficulty) => (
                         <li key={difficulty.difficulty}>
                           <div className="grade-stats__label">
                             <strong>{difficulty.difficulty}</strong>
-                            <span>{difficulty.count} voie{difficulty.count > 1 ? 's' : ''}</span>
+                            <span>{user && !authLoading && !topoActivityLoading ? `${difficulty.completedCount} / ${difficulty.count}` : `${difficulty.count} voie${difficulty.count > 1 ? 's' : ''}`}</span>
                           </div>
                           <div className="grade-stats__bar" aria-label={`${difficulty.difficulty} : ${difficulty.percentage} % des voies de ${zone.name}`}>
                             <span style={{ width: `${difficulty.percentage}%` }} />

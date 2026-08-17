@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { emptyFilters, filterRoutes, gradeDistribution } from './routes'
+import { completedRouteCount, emptyFilters, filterRoutes, gradeDistribution } from './routes'
 import type { Route } from '../types'
 
 const routes: Route[] = [
@@ -126,5 +126,18 @@ describe('filterRoutes', () => {
       { label: '6a / 6a+', count: 0, percentage: 0 },
       { label: '7a / 7a+', count: 1, percentage: 50 },
     ])
+  })
+
+  it('includes personal completions in each grade group', () => {
+    expect(gradeDistribution(routes.slice(0, 2), [routes[0].grade, routes[1].grade], new Set(['hard']))).toMatchObject([
+      { label: '5c', count: 1, completedCount: 0 },
+      { label: '7a / 7a+', count: 1, completedCount: 1 },
+    ])
+  })
+})
+
+describe('completedRouteCount', () => {
+  it('counts only completed routes in the displayed selection', () => {
+    expect(completedRouteCount(routes.slice(0, 2), new Set(['hard', 'other-relay']))).toBe(1)
   })
 })
