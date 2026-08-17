@@ -18,6 +18,8 @@ Les lectures du topo et des référentiels sont publiques. Toute écriture est p
 
 Les comptes pratiquants utilisent `profils`, relié en un-à-un à `auth.users` sans recopier l’adresse email. `enchainements` relie un pratiquant à une voie et conserve les informations du carnet. Un trigger impose côté base le propriétaire authentifié et la saison réelle de la voie ; une contrainte empêche de compter deux fois la même voie pour un pratiquant. Les politiques RLS limitent le détail du carnet à son propriétaire et aux administrateurs.
 
+Le menu principal est partagé par toutes les pages et dérivé du rôle résolu côté serveur : connexion seule en public, classement et carnet pour un pratiquant, puis topo, classement, carnet et administration pour un administrateur. Les administrateurs réutilisent leur compte Auth existant ; un trigger leur provisionne automatiquement un profil de carnet privé, sans seconde inscription.
+
 Le score de base est porté par `cotations.points` et associé automatiquement au libellé de cotation. La fonction publique `classement_saison` agrège uniquement les profils ayant consenti au classement, somme les dix meilleurs scores et ne retourne ni email ni commentaire. Elle est `security definer` pour exposer volontairement ces seuls agrégats sans ouvrir les carnets bruts ; son `search_path` est vide et tous les objets sont qualifiés.
 
 ## Authentification

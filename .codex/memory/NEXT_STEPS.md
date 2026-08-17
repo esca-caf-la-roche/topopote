@@ -3,6 +3,7 @@
 ## Immediate (next session)
 
 - [ ] Validate real OTP sign-up, profile consent changes, create/edit/delete logbook entries and score refresh.
+- [ ] Enable hosted user sign-ups and replace the still admin-specific remote OTP wording with the neutral local template.
 
 ## Short Term
 

@@ -2,6 +2,7 @@ import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } fro
 import type { User } from '@supabase/supabase-js'
 import { ascentPoints, MAX_SCORING_ASCENTS, SCORING_VERSION, seasonScore, styleLabels } from './lib/scoring'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
+import PrimaryNav from './PrimaryNav'
 import type { Ascent, AscentStyle, ClimberProfile, GradeFeeling, LeaderboardEntry, Route, Season } from './types'
 
 type Feedback = { kind: 'error' | 'success'; text: string } | null
@@ -23,10 +24,11 @@ function localDate() {
   const pad = (value: number) => String(value).padStart(2, '0')
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
 }
-export default function ClimberArea({ page, user, isAdmin, routes, seasons, onNavigate }: {
+export default function ClimberArea({ page, user, isAdmin, authLoading, routes, seasons, onNavigate }: {
   page: 'carnet' | 'classement'
   user: User | null
   isAdmin: boolean
+  authLoading: boolean
   routes: Route[]
   seasons: Season[]
   onNavigate: (page: Page) => void
@@ -92,25 +94,23 @@ export default function ClimberArea({ page, user, isAdmin, routes, seasons, onNa
 
   return (
     <div className="site-shell">
+      <PrimaryNav page={page} authenticated={Boolean(user)} isAdmin={isAdmin} loading={authLoading} />
       <header className={`hero hero--${page}`}>
         <div className="hero__content">
           <p className="eyebrow">Topopote · saison par saison</p>
           <h1 className="climber-title">{page === 'classement' ? 'Classement' : 'Mon carnet'}</h1>
           <p className="intro">{page === 'classement' ? `Les ${MAX_SCORING_ASCENTS} meilleures voies font le score.` : 'Enregistre tes voies et suis ta progression.'}</p>
         </div>
-        <nav className="hero-actions" aria-label="Navigation principale">
-          <button className="button" type="button" onClick={() => onNavigate('')}>Topo</button>
-          <button className={`button ${page === 'classement' ? 'button--accent' : ''}`} type="button" onClick={() => onNavigate('classement')}>Classement</button>
-          <button className={`button ${page === 'carnet' ? 'button--accent' : 'button--dark'}`} type="button" onClick={() => onNavigate('carnet')}>Mon carnet</button>
-          {isAdmin && <button className="button" type="button" onClick={() => onNavigate('admin')}>Admin</button>}
-        </nav>
       </header>
       {feedback && <div className={`message message--${feedback.kind}`} role="status">{feedback.text}</div>}
-      {page === 'classement' ? (
+      {authLoading ? <p className="empty-state">Vérification de la session…</p> : page === 'classement' ? (
         <Leaderboard entries={leaderboard} seasons={seasons} selectedSeasonId={selectedSeasonId} onSeasonChange={setSelectedSeasonId} />
       ) : !isSupabaseConfigured ? <p className="empty-state">Configure Supabase pour utiliser le carnet.</p>
         : !user ? <AuthPanel onFeedback={setFeedback} />
-          : !profile ? <ProfileSetup user={user} onCreated={loadPersonalData} onFeedback={setFeedback} />
+          : loading && !profile ? <p className="empty-state">Chargement du carnet…</p>
+            : !profile ? isAdmin
+              ? <p className="empty-state message--error">Le profil privé de l’administrateur est introuvable. Recharge la page ou contacte le support.</p>
+              : <ProfileSetup user={user} onCreated={loadPersonalData} onFeedback={setFeedback} />
             : <Logbook profile={profile} activeSeason={activeSeason} selectedSeasonId={selectedSeasonId} seasons={seasons} routes={routes} ascents={ascents} loading={loading} leaderboard={leaderboard} onSeasonChange={setSelectedSeasonId} onChanged={reload} onFeedback={setFeedback} onSignOut={async () => { await supabase?.auth.signOut(); onNavigate('') }} />}
     </div>
   )

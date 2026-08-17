@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(18);
+select plan(19);
 
 select ok(
   not has_table_privilege('anon', 'public.profils', 'select'),
@@ -26,6 +26,14 @@ insert into auth.users (
 
 insert into public.administrateurs (user_id)
 values ('00000000-0000-0000-0000-00000000c003');
+
+select results_eq(
+  $$select count(*)::bigint from public.profils
+    where user_id = '00000000-0000-0000-0000-00000000c003'
+      and classement_public = false$$,
+  $$values (1::bigint)$$,
+  'un administrateur reçoit automatiquement un profil de carnet privé'
+);
 
 insert into public.zones (id, nom, ordre)
 values ('10000000-0000-0000-0000-000000000001', '__test_rls__', 32000);
@@ -128,7 +136,8 @@ reset role;
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000c003', true);
 select results_eq(
-  $$select count(*)::bigint from public.enchainements$$,
+  $$select count(*)::bigint from public.enchainements
+    where voie_id = '50000000-0000-0000-0000-000000000005'$$,
   $$values (1::bigint)$$,
   'un administrateur peut contrôler les carnets'
 );

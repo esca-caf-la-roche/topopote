@@ -33,12 +33,14 @@ Phase 2 integration in progress: the practitioner schema and seasonal ranking ar
 - Applied `add_climber_logbook` and `optimize_profile_policies` to linked project `cxasxpzfeydwnzvpdtkf`; the remote migration history is aligned.
 - Executed the full pgTAP matrix remotely with 18/18 passing assertions and verified that all test users, profiles, zones and ascents were rolled back.
 - Verified the local frontend against the migrated remote schema: public seasons, empty seasonal ranking and anonymous practitioner sign-in view load without console errors.
+- Added a shared role-aware primary navigation, guarded asynchronous role resolution and a 320 px overflow fix. Public sees only login, practitioners see ranking/logbook, and administrators see every destination.
+- Applied `provision_admin_profiles` remotely so the existing and future administrators receive a private logbook profile on their existing Auth account. The remote pgTAP matrix now passes 19/19 assertions.
 
 ## Remaining
 
 - Validate a real practitioner OTP, authenticated logbook editing and leaderboard refresh end to end.
 - Enable hosted email sign-up through the dashboard, then install/confirm the neutral six-digit OTP template.
-- Commit the RLS policy optimization before publishing.
+- Commit the role navigation and automatic admin-profile changes before publishing.
 
 ## Known issues and blockers
 

@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import { emptyFilters, filterRoutes, gradeDistribution } from './lib/routes'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
 import ClimberArea from './ClimberArea'
+import PrimaryNav from './PrimaryNav'
 import type { Color, Grade, Relay, Route, RouteFilters, RouteSort, Season, Zone } from './types'
 
 type Message = { kind: 'error' | 'success'; text: string } | null
@@ -29,12 +30,14 @@ export default function App() {
   const [message, setMessage] = useState<Message>(null)
   const [user, setUser] = useState<User | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [authLoading, setAuthLoading] = useState(isSupabaseConfigured)
   const [page, setPage] = useState(() => window.location.hash.replace('#', ''))
   const [routeSort, setRouteSort] = useState<RouteSort>('relay')
   const [editRoutes, setEditRoutes] = useState(false)
   const [routeDraft, setRouteDraft] = useState<{ relayId?: string; gradeId?: string } | null>(null)
   const [showDistributionDetails, setShowDistributionDetails] = useState(false)
   const [distributionView, setDistributionView] = useState<DistributionView>('grade')
+  const authRequest = useRef(0)
 
   const loadTopo = useCallback(async () => {
     if (!supabase) return
@@ -109,18 +112,31 @@ export default function App() {
   }, [])
 
   const refreshAdmin = useCallback(async (nextUser: User | null) => {
-    setUser(nextUser)
+    const requestId = ++authRequest.current
+    setAuthLoading(true)
     if (!supabase || !nextUser) {
+      setUser(null)
       setIsAdmin(false)
+      setAuthLoading(false)
       return
     }
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('administrateurs')
       .select('user_id')
       .eq('user_id', nextUser.id)
       .maybeSingle()
+    if (requestId !== authRequest.current) return
+    if (error) {
+      setUser(null)
+      setIsAdmin(false)
+      setAuthLoading(false)
+      setMessage({ kind: 'error', text: `Impossible de vérifier le compte : ${error.message}` })
+      return
+    }
+    setUser(nextUser)
     setIsAdmin(Boolean(data))
+    setAuthLoading(false)
   }, [])
 
   useEffect(() => {
@@ -206,24 +222,24 @@ export default function App() {
   )
 
   useEffect(() => {
-    if (!isAdmin) {
+    if (authLoading || !isAdmin) {
       setEditRoutes(false)
       setRouteDraft(null)
     }
-  }, [isAdmin])
+  }, [authLoading, isAdmin])
 
   if (page === 'admin') {
     return (
       <AdminPage
         user={user}
         isAdmin={isAdmin}
+        authLoading={authLoading}
         seasons={seasons}
         zones={zones}
         relays={relays}
         colors={colors}
         grades={grades}
         message={message}
-        onClose={() => { window.location.hash = '' }}
         onChanged={loadTopo}
         onMessage={setMessage}
       />
@@ -236,6 +252,7 @@ export default function App() {
         page={page}
         user={user}
         isAdmin={isAdmin}
+        authLoading={authLoading}
         routes={routes}
         seasons={seasons}
         onNavigate={(nextPage) => { window.location.hash = nextPage }}
@@ -245,6 +262,7 @@ export default function App() {
 
   return (
     <div className="site-shell">
+      <PrimaryNav page="" authenticated={Boolean(user)} isAdmin={isAdmin} loading={authLoading} />
       <header className="hero">
         <div className="hero__content">
           <h1>TOPOPOTE</h1>
@@ -252,29 +270,6 @@ export default function App() {
           <p className="intro">Trouve une voie par zone, relais, couleur ou cotation.</p>
         </div>
         <div className="hero__aside">
-          <div className="hero-actions">
-            <button className="button button--light" type="button" onClick={() => { window.location.hash = 'classement' }}>Classement</button>
-            <button className="button button--accent" type="button" onClick={() => { window.location.hash = 'carnet' }}>{user ? 'Mon carnet' : 'S’inscrire'}</button>
-            {isAdmin && (
-              <button
-                className={`button ${editRoutes ? 'button--accent' : 'button--dark'}`}
-                type="button"
-                aria-pressed={editRoutes}
-                onClick={() => {
-                  setEditRoutes((current) => {
-                    if (!current) setFilters(emptyFilters)
-                    return !current
-                  })
-                  setRouteDraft(null)
-                }}
-              >
-                {editRoutes ? 'Quitter le mode édition' : 'Modifier les voies'}
-              </button>
-            )}
-            <button className="button button--dark" type="button" onClick={() => { window.location.hash = 'admin' }}>
-              {isAdmin ? 'Administration' : 'Espace admin'}
-            </button>
-          </div>
           <a
             className="club-link"
             href="https://www.caflarochebonneville.fr/"
@@ -483,6 +478,22 @@ export default function App() {
           <div className="section-heading">
             <h2 id="routes-title">Les voies</h2>
             <div className="section-heading__actions">
+              {!authLoading && isAdmin && (
+                <button
+                  className={`button ${editRoutes ? 'button--dark' : 'button--light'}`}
+                  type="button"
+                  aria-pressed={editRoutes}
+                  onClick={() => {
+                    setEditRoutes((current) => {
+                      if (!current) setFilters(emptyFilters)
+                      return !current
+                    })
+                    setRouteDraft(null)
+                  }}
+                >
+                  {editRoutes ? 'Quitter l’édition' : 'Modifier les voies'}
+                </button>
+              )}
               {editRoutes && (
                 <button className="button button--accent" type="button" onClick={() => setRouteDraft({})}>
                   + Ajouter une voie
@@ -766,25 +777,25 @@ function ActionButton({ icon, label, className = '', ...props }: React.ButtonHTM
 function AdminPage({
   user,
   isAdmin,
+  authLoading,
   seasons,
   zones,
   relays,
   colors,
   grades,
   message,
-  onClose,
   onChanged,
   onMessage,
 }: {
   user: User | null
   isAdmin: boolean
+  authLoading: boolean
   seasons: Season[]
   zones: Zone[]
   relays: Relay[]
   colors: Color[]
   grades: Grade[]
   message: Message
-  onClose: () => void
   onChanged: () => Promise<void>
   onMessage: (message: Message) => void
 }) {
@@ -823,13 +834,13 @@ function AdminPage({
 
   return (
     <div className="site-shell">
+      <PrimaryNav page="admin" authenticated={Boolean(user)} isAdmin={isAdmin} loading={authLoading} />
       <header className="hero hero--admin">
         <div>
           <p className="eyebrow">Topopote · gestion du mur</p>
           <h1 id="admin-title" className="admin-title">Administration</h1>
           <p className="intro">Gère les saisons et les référentiels du topo.</p>
         </div>
-        <button className="button button--dark" type="button" onClick={onClose}>Retour au topo</button>
       </header>
 
       {message && <div className={`message message--${message.kind}`}>{message.text}</div>}
@@ -839,6 +850,8 @@ function AdminPage({
 
         {!isSupabaseConfigured ? (
           <p className="empty-state">Configure Supabase avant d’utiliser l’administration.</p>
+        ) : authLoading ? (
+          <p className="empty-state">Vérification de la session…</p>
         ) : !user ? (
           <form className="stack" onSubmit={otpSent ? verifyOtp : sendOtp}>
             <p>L’accès est réservé aux administrateurs déjà enregistrés.</p>

@@ -15,11 +15,20 @@
 }
 
 * { box-sizing: border-box; }
-body { margin: 0; min-width: 320px; min-height: 100vh; }
+body { margin: 0; min-width: 0; min-height: 100vh; }
 button, input, select { font: inherit; }
 button { cursor: pointer; }
 
 .site-shell { width: min(1180px, calc(100% - 32px)); margin: 0 auto; padding: 32px 0 80px; }
+.primary-nav { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 24px; padding: 12px; border: var(--border); background: var(--paper); box-shadow: var(--shadow); }
+.primary-nav__brand { min-width: 0; color: var(--ink); font-family: 'Archivo Black', sans-serif; font-size: 1.25rem; text-decoration: none; text-transform: uppercase; }
+.primary-nav__brand:hover { text-decoration: underline; text-decoration-thickness: 3px; text-underline-offset: 4px; }
+.primary-nav__brand:focus-visible, .primary-nav__link:focus-visible { outline: 4px solid var(--yellow); outline-offset: 3px; }
+.primary-nav__links { display: grid; min-width: 0; grid-auto-flow: column; grid-auto-columns: minmax(110px, auto); gap: 9px; }
+.primary-nav__link { display: inline-flex; min-width: 0; align-items: center; justify-content: center; padding: 9px 13px; border: 2px solid var(--ink); color: var(--ink); background: var(--paper); box-shadow: 3px 3px 0 var(--ink); font-weight: 900; overflow-wrap: anywhere; text-align: center; text-decoration: none; transition: transform .12s, box-shadow .12s; }
+.primary-nav__link:hover { transform: translate(1px, 1px); box-shadow: 2px 2px 0 var(--ink); }
+.primary-nav__link[aria-current='page'], .primary-nav__link--account { background: var(--pink); }
+.primary-nav__status { font-size: .82rem; font-weight: 900; }
 .hero { display: flex; justify-content: space-between; gap: 32px; align-items: flex-start; padding: 48px; background: var(--yellow); border: var(--border); box-shadow: 10px 10px 0 var(--ink); }
 .eyebrow { margin: 0 0 16px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
 h1, h2, h3 { font-family: 'Archivo Black', sans-serif; text-transform: uppercase; margin-top: 0; }
@@ -35,7 +44,6 @@ h4 { margin: 0 0 12px; font-family: 'Archivo Black', sans-serif; text-transform:
 .club-link:hover { text-decoration: underline; text-decoration-thickness: 3px; text-underline-offset: 4px; }
 .club-link:focus-visible { outline: 4px solid var(--ink); outline-offset: 4px; }
 .club-link img { width: 116px; height: 39px; object-fit: contain; object-position: left center; }
-.hero-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 12px; }
 
 .button { border: var(--border); padding: 13px 18px; font-weight: 800; background: var(--paper); box-shadow: 4px 4px 0 var(--ink); transition: transform .12s, box-shadow .12s; }
 .button:hover { transform: translate(2px, 2px); box-shadow: 2px 2px 0 var(--ink); }
@@ -293,11 +301,14 @@ input[type='color'] { padding: 3px; }
 
 @media (max-width: 780px) {
   .site-shell { width: min(100% - 20px, 1180px); padding-top: 10px; }
+  .primary-nav { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; margin-bottom: 18px; padding: 10px; box-shadow: 4px 4px 0 var(--ink); }
+  .primary-nav__brand { padding-bottom: 8px; border-bottom: 3px solid var(--ink); }
+  .primary-nav__links { display: grid; width: 100%; grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .primary-nav__links--1 { grid-template-columns: minmax(0, 1fr); }
+  .primary-nav__link { width: 100%; padding: 10px 8px; }
   .hero { flex-direction: column; padding: 28px 22px; }
   .hero__aside { width: 100%; align-items: flex-start; gap: 26px; }
   .club-link { text-align: left; }
-  .hero-actions { width: 100%; justify-content: stretch; }
-  .hero-actions .button { flex: 1; }
   .form-grid, .reference-grid { grid-template-columns: 1fr; }
   .filters { padding: 18px; }
   .filters__groups, .filter-group__fields, .display-options { grid-template-columns: 1fr; }
@@ -324,7 +335,6 @@ input[type='color'] { padding: 3px; }
   .climber-page { gap: 34px; margin-top: 38px; }
   .climber-title { font-size: clamp(2.4rem, 14vw, 3.4rem); overflow-wrap: anywhere; }
   .hero--carnet .eyebrow, .hero--classement .eyebrow { overflow-wrap: anywhere; }
-  .hero--carnet .hero-actions .button, .hero--classement .hero-actions .button { min-width: 0; flex: 1 1 130px; }
   .profile-strip, .score-explainer { align-items: stretch; flex-direction: column; padding: 20px; }
   .profile-strip__actions { justify-content: stretch; }
   .profile-strip__actions .button { flex: 1; }
