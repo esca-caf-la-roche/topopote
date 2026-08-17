@@ -2,20 +2,36 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(41);
+select plan(43);
 
-create function public.__pgtap_default_privileges()
+create function public.__pgtap_postgres_default_privileges()
 returns integer
 language sql
 as $$select 1$$;
 
 select ok(
-  not has_function_privilege('anon', 'public.__pgtap_default_privileges()', 'execute'),
-  'une future fonction publique n est pas exécutable par anon par défaut'
+  not has_function_privilege('anon', 'public.__pgtap_postgres_default_privileges()', 'execute'),
+  'une fonction créée par postgres n est pas exécutable par anon par défaut'
 );
 select ok(
-  not has_function_privilege('authenticated', 'public.__pgtap_default_privileges()', 'execute'),
-  'une future fonction publique doit être accordée explicitement à authenticated'
+  not has_function_privilege('authenticated', 'public.__pgtap_postgres_default_privileges()', 'execute'),
+  'une fonction créée par postgres doit être accordée explicitement à authenticated'
+);
+
+set local role supabase_admin;
+create function public.__pgtap_supabase_admin_default_privileges()
+returns integer
+language sql
+as $$select 1$$;
+reset role;
+
+select ok(
+  not has_function_privilege('anon', 'public.__pgtap_supabase_admin_default_privileges()', 'execute'),
+  'une fonction créée par supabase_admin n est pas exécutable par anon par défaut'
+);
+select ok(
+  not has_function_privilege('authenticated', 'public.__pgtap_supabase_admin_default_privileges()', 'execute'),
+  'une fonction créée par supabase_admin doit être accordée explicitement à authenticated'
 );
 
 select ok(
