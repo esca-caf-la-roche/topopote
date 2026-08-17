@@ -2,7 +2,7 @@
 
 ## Current phase
 
-Phase 2 integration in progress: the practitioner schema and seasonal ranking are deployed to Supabase, while the frontend commit remains local and unpushed.
+Phase 2 integration in progress: the practitioner schema, ranking and route-level social details are deployed to Supabase, while the direct-topo frontend remains local and unpushed.
 
 ## Done
 
@@ -35,19 +35,29 @@ Phase 2 integration in progress: the practitioner schema and seasonal ranking ar
 - Verified the local frontend against the migrated remote schema: public seasons, empty seasonal ranking and anonymous practitioner sign-in view load without console errors.
 - Added a shared role-aware primary navigation, guarded asynchronous role resolution and a 320 px overflow fix. Public sees only login, practitioners see ranking/logbook, and administrators see every destination.
 - Applied `provision_admin_profiles` remotely so the existing and future administrators receive a private logbook profile on their existing Auth account. The remote pgTAP matrix now passes 19/19 assertions.
+- Added a connected-topo flow locally: every route opens a focused modal, supports direct ascent entry, shows consented nicknames/stars/grade feelings/comments, and marks the current climber's completed routes with lighter style colors.
+- Added a distinct private-by-default `partage_activite` consent and a narrow authenticated-only `avis_voie` RPC without email or user UUID; raw profile and logbook RLS remain unchanged.
+- Extended the database matrix to 24 assertions for RPC privileges, route scoping and immediate consent withdrawal; added two presentation tests for the four style colors and the unique-route CTA state.
+- Validated the local change with ESLint, 20/20 Vitest tests, a production build, a one-migration remote dry-run, public browser loading of 99 routes, and no horizontal overflow at 320 px.
+- Applied `20260817072902_add_route_ascent_details.sql` to linked project `cxasxpzfeydwnzvpdtkf`; verified migration history, consent column defaults, authenticated-only RPC privileges and zero unauthenticated rows.
+- Executed the 24-assertion pgTAP matrix remotely through a transaction: all assertions passed through `ok 24`, `finish()` reported no failure, and rollback verification found zero test users, profiles, zones or ascents.
+- Re-ran Supabase advisors after migration: no performance warnings; only the intentional executable `SECURITY DEFINER` RPC warnings and the pre-existing password-protection warning remain.
 
 ## Remaining
 
 - Validate a real practitioner OTP, authenticated logbook editing and leaderboard refresh end to end.
 - Enable hosted email sign-up through the dashboard, then install/confirm the neutral six-digit OTP template.
-- Commit the role navigation and automatic admin-profile changes before publishing.
+- Validate the connected route modal, direct entry, consent withdrawal and color refresh end to end with two real practitioner accounts.
+- Commit the route-details feature together with the still-local role navigation and automatic admin-profile changes before publishing.
 
 ## Known issues and blockers
 
 - The hosted project is linked and its schema is deployed.
 - Docker/Podman is unavailable, so the migration cannot be tested with local Supabase containers.
+- The route-details migration is applied remotely and aligned with local history.
 - GitHub Pages secrets are not configured yet.
 - Hosted Supabase email sign-up must be enabled separately; changing `supabase/config.toml` does not prove the remote Auth setting.
 - The public ranking RPC intentionally uses a narrowly scoped `SECURITY DEFINER`; Supabase advisors therefore report the expected anonymous/authenticated executable-function warnings.
 - Password-leak protection remains disabled but is not used by the OTP-only flows.
 - OTP behavior is not yet integration-tested; no frontend publication or production deployment has been performed for phase 2.
+- The authenticated route modal can now be exercised against the hosted project; two-account browser validation is still pending.

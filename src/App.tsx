@@ -5,7 +5,10 @@ import { emptyFilters, filterRoutes, gradeDistribution } from './lib/routes'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
 import ClimberArea from './ClimberArea'
 import PrimaryNav from './PrimaryNav'
-import type { Color, Grade, Relay, Route, RouteFilters, RouteSort, Season, Zone } from './types'
+import RouteAscentsModal from './RouteAscentsModal'
+import { routeAscentAction, routeAscentBackgrounds } from './lib/routeAscents'
+import { styleLabels } from './lib/scoring'
+import type { AscentStyle, Color, Grade, Relay, Route, RouteFilters, RouteSort, Season, Zone } from './types'
 
 type Message = { kind: 'error' | 'success'; text: string } | null
 type DistributionView = 'grade' | 'zone'
@@ -37,7 +40,13 @@ export default function App() {
   const [routeDraft, setRouteDraft] = useState<{ relayId?: string; gradeId?: string } | null>(null)
   const [showDistributionDetails, setShowDistributionDetails] = useState(false)
   const [distributionView, setDistributionView] = useState<DistributionView>('grade')
+  const [selectedRoute, setSelectedRoute] = useState<Route | null>(null)
+  const [ownAscents, setOwnAscents] = useState<Record<string, AscentStyle>>({})
+  const [hasClimberProfile, setHasClimberProfile] = useState(false)
+  const [sharesActivity, setSharesActivity] = useState(false)
+  const [topoActivityLoading, setTopoActivityLoading] = useState(false)
   const authRequest = useRef(0)
+  const topoActivityRequest = useRef(0)
 
   const loadTopo = useCallback(async () => {
     if (!supabase) return
@@ -150,6 +159,38 @@ export default function App() {
     return () => data.subscription.unsubscribe()
   }, [loadTopo, refreshAdmin])
 
+  const loadTopoActivity = useCallback(async () => {
+    const requestId = ++topoActivityRequest.current
+    if (!supabase || !user) {
+      setOwnAscents({})
+      setHasClimberProfile(false)
+      setSharesActivity(false)
+      setTopoActivityLoading(false)
+      return
+    }
+    setTopoActivityLoading(true)
+    setOwnAscents({})
+    setHasClimberProfile(false)
+    setSharesActivity(false)
+    const [profileResult, ascentsResult] = await Promise.all([
+      supabase.from('profils').select('user_id, partage_activite').eq('user_id', user.id).maybeSingle(),
+      supabase.from('enchainements').select('voie_id, style').eq('user_id', user.id),
+    ])
+    if (requestId !== topoActivityRequest.current) return
+    const error = profileResult.error || ascentsResult.error
+    if (error) {
+      setTopoActivityLoading(false)
+      setMessage({ kind: 'error', text: `Impossible de charger tes enchaînements : ${error.message}` })
+      return
+    }
+    setHasClimberProfile(Boolean(profileResult.data))
+    setSharesActivity(profileResult.data?.partage_activite ?? false)
+    setOwnAscents(Object.fromEntries((ascentsResult.data ?? []).map((row) => [row.voie_id, row.style as AscentStyle])))
+    setTopoActivityLoading(false)
+  }, [user])
+
+  useEffect(() => { void loadTopoActivity() }, [loadTopoActivity, page])
+
   useEffect(() => {
     const updatePage = () => setPage(window.location.hash.replace('#', ''))
     window.addEventListener('hashchange', updatePage)
@@ -220,6 +261,7 @@ export default function App() {
       .filter((group) => group.routeCount > 0 || editRoutes),
     [editRoutes, grades, relays, routeSort, visibleRoutes, zones],
   )
+  const closeSelectedRoute = useCallback(() => setSelectedRoute(null), [])
 
   useEffect(() => {
     if (authLoading || !isAdmin) {
@@ -289,6 +331,18 @@ export default function App() {
       )}
 
       {message && <div className={`message message--${message.kind}`}>{message.text}</div>}
+
+      {selectedRoute && user && (
+        <RouteAscentsModal
+          route={selectedRoute}
+          ownStyle={ownAscents[selectedRoute.id]}
+          hasProfile={hasClimberProfile}
+          sharesActivity={sharesActivity}
+          onClose={closeSelectedRoute}
+          onAscentCreated={loadTopoActivity}
+          onFeedback={setMessage}
+        />
+      )}
 
       <main>
         <section className="filters" aria-labelledby="filters-title">
@@ -560,7 +614,13 @@ export default function App() {
                                 onMessage={setMessage}
                               />
                             ) : (
-                              <RouteCard key={route.id} route={route} />
+                              <RouteCard
+                                key={route.id}
+                                route={route}
+                                authenticated={Boolean(user) && !authLoading && !topoActivityLoading}
+                                ownStyle={ownAscents[route.id]}
+                                onOpen={() => setSelectedRoute(route)}
+                              />
                             ))}
                           </div>
                         ) : (
@@ -617,21 +677,35 @@ function RouteModal({ onClose, ...routeFormProps }: {
   )
 }
 
-function RouteCard({ route }: { route: Route }) {
+function RouteCard({ route, authenticated, ownStyle, onOpen }: {
+  route: Route
+  authenticated?: boolean
+  ownStyle?: AscentStyle
+  onOpen?: () => void
+}) {
+  const content = <>
+    <div
+      className="route-card__color"
+      style={{ backgroundColor: route.color.hex }}
+      role="img"
+      aria-label={`Couleur ${route.color.name}`}
+    />
+    <div className="route-card__relay">
+      <p>Relais</p>
+      <strong>{route.relay.number}</strong>
+      {route.isHalfRoute && <span className="half-route-badge">1/2 voie</span>}
+    </div>
+    <div className="grade" aria-label={`Cotation ${route.grade.label}`}>{route.grade.label}</div>
+    {authenticated && <span className={`route-card__ascent-action ${ownStyle ? 'route-card__ascent-action--done' : ''}`}>
+      {ownStyle && <span className={`style-dot style-dot--${ownStyle}`} />}
+      {ownStyle ? styleLabels[ownStyle] : <span aria-hidden="true">+ 📓</span>}
+    </span>}
+  </>
+
   return (
-    <article className="route-card">
-      <div
-        className="route-card__color"
-        style={{ backgroundColor: route.color.hex }}
-        role="img"
-        aria-label={`Couleur ${route.color.name}`}
-      />
-      <div className="route-card__relay">
-        <p>Relais</p>
-        <strong>{route.relay.number}</strong>
-        {route.isHalfRoute && <span className="half-route-badge">1/2 voie</span>}
-      </div>
-      <div className="grade" aria-label={`Cotation ${route.grade.label}`}>{route.grade.label}</div>
+    <article className="route-card" style={{ backgroundColor: ownStyle ? routeAscentBackgrounds[ownStyle] : undefined }}>
+      {authenticated && onOpen ? <button className="route-card__open" type="button" onClick={onOpen} aria-label={`${routeAscentAction(ownStyle)} · relais ${route.relay.number}, ${route.color.name}, ${route.grade.label}`}>{content}</button>
+        : <div className="route-card__content">{content}</div>}
     </article>
   )
 }

@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(19);
+select plan(24);
 
 select ok(
   not has_table_privilege('anon', 'public.profils', 'select'),
@@ -15,6 +15,14 @@ select ok(
 select ok(
   has_function_privilege('anon', 'public.classement_saison(uuid)', 'execute'),
   'anon peut appeler uniquement le RPC public de classement'
+);
+select ok(
+  not has_function_privilege('anon', 'public.avis_voie(uuid)', 'execute'),
+  'anon ne peut pas lire les avis détaillés d’une voie'
+);
+select ok(
+  has_function_privilege('authenticated', 'public.avis_voie(uuid)', 'execute'),
+  'authenticated peut appeler le RPC ciblé des avis d’une voie'
 );
 
 insert into auth.users (
@@ -61,8 +69,8 @@ select lives_ok(
   'un pratiquant crée son propre profil'
 );
 select lives_ok(
-  $$update public.profils set classement_public = true where user_id = '00000000-0000-0000-0000-00000000a001'$$,
-  'le consentement au classement est modifiable'
+  $$update public.profils set classement_public = true, partage_activite = true where user_id = '00000000-0000-0000-0000-00000000a001'$$,
+  'les consentements au classement et au partage sont modifiables'
 );
 select throws_ok(
   $$insert into public.profils (user_id, pseudo) values ('00000000-0000-0000-0000-00000000b002', 'Profil usurpé')$$,
@@ -90,14 +98,17 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000a001', true);
 
 select lives_ok(
-  $$insert into public.enchainements (user_id, voie_id, saison_id, date_enchainement, style, essais)
+  $$insert into public.enchainements (user_id, voie_id, saison_id, date_enchainement, style, essais, ressenti_cotation, note, commentaire)
     values (
       '00000000-0000-0000-0000-00000000b002',
       '50000000-0000-0000-0000-000000000005',
       '20000000-0000-0000-0000-000000000002',
       current_date,
       'a_vue',
-      1
+      1,
+      'dure',
+      4,
+      'Très belle voie'
     )$$,
   'un enchaînement valide peut être créé'
 );
@@ -131,6 +142,34 @@ select results_eq(
   $$select null::uuid where false$$,
   'un pratiquant ne supprime pas le carnet d’un autre'
 );
+select results_eq(
+  $$select pseudo, est_moi, style, ressenti_cotation, note, commentaire
+    from public.avis_voie('50000000-0000-0000-0000-000000000005')$$,
+  $$values ('Grimpeur A'::text, false, 'a_vue'::text, 'dure'::text, 4::smallint, 'Très belle voie'::text)$$,
+  'un pratiquant voit uniquement le résumé consenti d’un autre pratiquant'
+);
+select results_eq(
+  $$select count(*)::bigint from public.avis_voie('50000000-0000-0000-0000-000000000099')$$,
+  $$values (0::bigint)$$,
+  'le RPC reste strictement filtré sur la voie demandée'
+);
+
+reset role;
+update public.profils
+set partage_activite = false
+where user_id = '00000000-0000-0000-0000-00000000a001';
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000b002', true);
+select results_eq(
+  $$select count(*)::bigint from public.avis_voie('50000000-0000-0000-0000-000000000005')$$,
+  $$values (0::bigint)$$,
+  'le retrait du consentement masque immédiatement l’enchaînement aux autres pratiquants'
+);
+
+reset role;
+update public.profils
+set partage_activite = true
+where user_id = '00000000-0000-0000-0000-00000000a001';
 
 reset role;
 set local role authenticated;

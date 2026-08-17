@@ -63,6 +63,16 @@ export type ClimberProfile = {
   userId: string
   nickname: string
   publicRanking: boolean
+  shareActivity: boolean
+}
+
+export type RouteAscentSummary = {
+  nickname: string
+  isCurrent: boolean
+  style: AscentStyle
+  gradeFeeling: GradeFeeling
+  rating: number | null
+  comment: string | null
 }
 
 export type Ascent = {

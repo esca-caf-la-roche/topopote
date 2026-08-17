@@ -9,6 +9,7 @@ export function navigationItems(authenticated: boolean, isAdmin: boolean): Navig
   if (!authenticated) return [{ page: 'carnet', label: 'Connexion' }]
   if (!isAdmin) {
     return [
+      { page: '', label: 'Topo' },
       { page: 'classement', label: 'Classement' },
       { page: 'carnet', label: 'Carnet' },
     ]

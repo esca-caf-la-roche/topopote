@@ -30,3 +30,5 @@
 | Keep profiles private by default and expose the public leaderboard through a narrow aggregate RPC | Make ranking consent reversible and prevent public access to emails, comments and raw logbooks | 2026-08-17 |
 | Protect routes referenced by logbooks with `ON DELETE RESTRICT` | Preserve practitioner history instead of silently cascading route deletion into personal data loss | 2026-08-17 |
 | Keep administrators in the existing `administrateurs` table rather than adding a mutable profile role | Preserve the current server-side authorization contract and avoid user-controlled role metadata | 2026-08-17 |
+| Keep raw logbooks private and expose route opinions through `avis_voie` with a separate `partage_activite` consent | Support the connected social topo without silently reusing ranking consent or exposing emails, UUIDs and unrelated carnet data | 2026-08-17 |
+| Color a completed route only from the current climber's style | Avoid an ambiguous card color when several practitioners used different ascent styles | 2026-08-17 |

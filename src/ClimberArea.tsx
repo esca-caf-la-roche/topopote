@@ -68,13 +68,13 @@ export default function ClimberArea({ page, user, isAdmin, authLoading, routes, 
     if (!supabase || !user) { setLoading(false); return }
     setLoading(true)
     const [profileResult, ascentsResult] = await Promise.all([
-      supabase.from('profils').select('user_id, pseudo, classement_public').eq('user_id', user.id).maybeSingle(),
+      supabase.from('profils').select('user_id, pseudo, classement_public, partage_activite').eq('user_id', user.id).maybeSingle(),
       supabase.from('enchainements').select('id, user_id, voie_id, saison_id, date_enchainement, style, essais, ressenti_cotation, note, recommande, commentaire').eq('user_id', user.id).order('date_enchainement', { ascending: false }),
     ])
     if (requestId !== personalDataRequest.current) return
     const error = profileResult.error || ascentsResult.error
     if (error) { setFeedback({ kind: 'error', text: error.message }); setLoading(false); return }
-    setProfile(profileResult.data ? { userId: profileResult.data.user_id, nickname: profileResult.data.pseudo, publicRanking: profileResult.data.classement_public } : null)
+    setProfile(profileResult.data ? { userId: profileResult.data.user_id, nickname: profileResult.data.pseudo, publicRanking: profileResult.data.classement_public, shareActivity: profileResult.data.partage_activite } : null)
     setAscents((ascentsResult.data ?? []).flatMap((row) => {
       const route = routes.find((candidate) => candidate.id === row.voie_id)
       return route ? [{
@@ -130,14 +130,14 @@ function AuthPanel({ onFeedback }: { onFeedback: (feedback: Feedback) => void })
 }
 
 function ProfileSetup({ user, onCreated, onFeedback }: { user: User; onCreated: () => Promise<void>; onFeedback: (feedback: Feedback) => void }) {
-  const [nickname, setNickname] = useState(''); const [publicRanking, setPublicRanking] = useState(false)
+  const [nickname, setNickname] = useState(''); const [publicRanking, setPublicRanking] = useState(false); const [shareActivity, setShareActivity] = useState(false)
   async function submit(event: FormEvent) {
     event.preventDefault()
-    const { error } = await supabase!.from('profils').insert({ user_id: user.id, pseudo: nickname.trim(), classement_public: publicRanking })
+    const { error } = await supabase!.from('profils').insert({ user_id: user.id, pseudo: nickname.trim(), classement_public: publicRanking, partage_activite: shareActivity })
     if (error) return onFeedback({ kind: 'error', text: error.message })
     onFeedback({ kind: 'success', text: 'Ton profil est prêt. À toi de grimper !' }); await onCreated()
   }
-  return <main className="climber-page"><section className="auth-card auth-card--profile"><p className="section-kicker">Dernière prise</p><h2>Crée ton profil</h2><form className="stack" onSubmit={submit}><label><span>Pseudo public</span><input required minLength={2} maxLength={32} value={nickname} onChange={(event) => setNickname(event.target.value)} /></label><label className="checkbox-label"><input type="checkbox" checked={publicRanking} onChange={(event) => setPublicRanking(event.target.checked)} /><span>Apparaître dans le classement public</span></label><p className="privacy-note">Ton adresse email n’est jamais affichée.</p><button className="button button--accent">Créer mon profil</button></form></section></main>
+  return <main className="climber-page"><section className="auth-card auth-card--profile"><p className="section-kicker">Dernière prise</p><h2>Crée ton profil</h2><form className="stack" onSubmit={submit}><label><span>Pseudo</span><input required minLength={2} maxLength={32} value={nickname} onChange={(event) => setNickname(event.target.value)} /></label><label className="checkbox-label"><input type="checkbox" checked={publicRanking} onChange={(event) => setPublicRanking(event.target.checked)} /><span>Apparaître dans le classement public</span></label><label className="checkbox-label"><input type="checkbox" checked={shareActivity} onChange={(event) => setShareActivity(event.target.checked)} /><span>Partager mes enchaînements et commentaires avec les pratiquants connectés</span></label><p className="privacy-note">Ton adresse email n’est jamais affichée. Le partage des enchaînements reste facultatif.</p><button className="button button--accent">Créer mon profil</button></form></section></main>
 }
 
 function Leaderboard({ entries, seasons, selectedSeasonId, onSeasonChange }: { entries: LeaderboardEntry[]; seasons: Season[]; selectedSeasonId: string; onSeasonChange: (id: string) => void }) {
@@ -159,14 +159,15 @@ function Logbook({ profile, activeSeason, selectedSeasonId, seasons, routes, asc
 function ProfileSettings({ profile, onChanged, onFeedback }: { profile: ClimberProfile; onChanged: () => Promise<void>; onFeedback: (feedback: Feedback) => void }) {
   const [nickname, setNickname] = useState(profile.nickname)
   const [publicRanking, setPublicRanking] = useState(profile.publicRanking)
+  const [shareActivity, setShareActivity] = useState(profile.shareActivity)
   async function submit(event: FormEvent) {
     event.preventDefault()
-    const { error } = await supabase!.from('profils').update({ pseudo: nickname.trim(), classement_public: publicRanking }).eq('user_id', profile.userId)
+    const { error } = await supabase!.from('profils').update({ pseudo: nickname.trim(), classement_public: publicRanking, partage_activite: shareActivity }).eq('user_id', profile.userId)
     if (error) return onFeedback({ kind: 'error', text: error.message })
     onFeedback({ kind: 'success', text: 'Préférences du profil enregistrées.' })
     await onChanged()
   }
-  return <details className="profile-settings"><summary>Modifier mon profil et ma confidentialité</summary><form className="form-grid" onSubmit={submit}><label><span>Pseudo</span><input required minLength={2} maxLength={32} value={nickname} onChange={(event) => setNickname(event.target.value)} /></label><label className="checkbox-label"><input type="checkbox" checked={publicRanking} onChange={(event) => setPublicRanking(event.target.checked)} /><span>Apparaître dans le classement public</span></label><button className="button button--accent">Enregistrer</button></form></details>
+  return <details className="profile-settings"><summary>Modifier mon profil et ma confidentialité</summary><form className="form-grid" onSubmit={submit}><label><span>Pseudo</span><input required minLength={2} maxLength={32} value={nickname} onChange={(event) => setNickname(event.target.value)} /></label><label className="checkbox-label"><input type="checkbox" checked={publicRanking} onChange={(event) => setPublicRanking(event.target.checked)} /><span>Apparaître dans le classement public</span></label><label className="checkbox-label"><input type="checkbox" checked={shareActivity} onChange={(event) => setShareActivity(event.target.checked)} /><span>Partager mes enchaînements et commentaires avec les pratiquants connectés</span></label><button className="button button--accent">Enregistrer</button></form></details>
 }
 
 function AscentForm({ userId, activeSeason, routes, ascents, onChanged, onFeedback }: { userId: string; activeSeason: Season | null; routes: Route[]; ascents: Ascent[]; onChanged: () => Promise<void>; onFeedback: (feedback: Feedback) => void }) {

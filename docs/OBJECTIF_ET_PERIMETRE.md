@@ -40,7 +40,9 @@ Mettre à disposition un topo numérique simple du mur d’escalade de Saint-Pie
 
 - inscription et connexion pratiquant par code OTP email, sans mot de passe ;
 - profil avec pseudo et consentement explicite pour apparaître au classement public ;
-- enregistrement d’une voie de la saison active avec date, style, nombre d’essais, note, recommandation, cotation ressentie et commentaire privé ;
+- enregistrement d’une voie de la saison active avec date, style, nombre d’essais, note, recommandation, cotation ressentie et commentaire ;
+- ajout direct d’un enchaînement depuis chaque voie du topo et repérage des voies déjà enchaînées par une teinte claire correspondant au style ;
+- consultation, par les pratiquants connectés, des pseudos, étoiles, ressentis et commentaires dont le partage a été explicitement autorisé ;
 - carnet personnel consultable par saison ;
 - tableau de bord avec score, rang, volume, meilleure cotation et répartition des styles ;
 - classement public par saison fondé sur les dix meilleurs enchaînements ;
@@ -51,6 +53,8 @@ Mettre à disposition un topo numérique simple du mur d’escalade de Saint-Pie
 Le barème `vertical-life-2026-v1` reprend l’échelle publique actuelle inspirée de 8a.nu : 6a vaut 400 points, 7a 700 et 8a 1 000. Les modificateurs sont +147 à vue, +53 flash, +2 au deuxième essai après travail et −50 en moulinette. Le score d’une saison additionne au maximum les dix meilleures voies uniques. Il s’agit d’un jeu motivant et non d’une mesure absolue du niveau.
 
 Contrairement à 8a.nu, Topopote ne travaille pas sur douze mois glissants : la saison portée par chaque voie constitue la période de classement. Les étoiles, la recommandation, le commentaire et le ressenti de cotation n’ont aucun effet sur les points.
+
+Le partage communautaire est indépendant du classement public. Il est désactivé par défaut et peut être modifié dans les préférences du profil. Même lorsque ce partage est actif, l’adresse email, l’identifiant Auth et le carnet brut ne sont jamais exposés aux autres pratiquants.
 
 ### Hors périmètre actuel
 
