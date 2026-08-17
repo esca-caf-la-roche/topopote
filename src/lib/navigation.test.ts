@@ -14,6 +14,10 @@ describe('navigationItems', () => {
     ])
   })
 
+  it('affiche Potes seulement lorsque le profil partage son activité', () => {
+    expect(navigationItems(true, false, false, true)).toContainEqual({ page: 'potes', label: 'Potes' })
+  })
+
   it('ajoute les retours des voies au rôle ouvreur', () => {
     expect(navigationItems(true, false, true)).toEqual([
       { page: '', label: 'Topo' },
@@ -24,10 +28,11 @@ describe('navigationItems', () => {
   })
 
   it('donne toutes les destinations à l’administrateur', () => {
-    expect(navigationItems(true, true)).toEqual([
+    expect(navigationItems(true, true, false, true)).toEqual([
       { page: '', label: 'Topo' },
       { page: 'classement', label: 'Classement' },
       { page: 'carnet', label: 'Carnet' },
+      { page: 'potes', label: 'Potes' },
       { page: 'ouvreurs', label: 'Retours voies' },
       { page: 'admin', label: 'Admin' },
     ])

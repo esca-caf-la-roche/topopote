@@ -112,3 +112,27 @@ export type RouteFeedback = {
   commentCount: number
   comments: string[]
 }
+
+export type PractitionerRelation = {
+  id: string
+  nickname: string
+  following: boolean
+  followsMe: boolean
+  canFollow: boolean
+}
+
+export type FriendActivity = {
+  nickname: string
+  climbedAt: string
+  style: AscentStyle
+  gradeFeeling: GradeFeeling
+  rating: number | null
+  recommended: boolean
+  comment: string | null
+  season: string
+  zone: string
+  relay: number
+  color: string
+  colorHex: string
+  grade: string
+}

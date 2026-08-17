@@ -43,6 +43,8 @@ Mettre à disposition un topo numérique simple du mur d’escalade de Saint-Pie
 - enregistrement d’une voie de la saison active avec date, style, nombre d’essais, note, recommandation, cotation ressentie et commentaire ;
 - ajout direct d’un enchaînement depuis chaque voie du topo et repérage des voies déjà enchaînées par une teinte claire correspondant au style ;
 - consultation, par les pratiquants connectés, des pseudos, étoiles, ressentis et commentaires dont le partage a été explicitement autorisé ;
+- annuaire des pseudos pour suivre ou ne plus suivre un autre pratiquant, avec listes « je suis » et « me suivent » ;
+- fil chronologique des enchaînements partagés par les pratiquants suivis ;
 - carnet personnel consultable par saison ;
 - tableau de bord avec score, rang, volume, meilleure cotation et répartition des styles ;
 - classement public par saison fondé sur les dix meilleurs enchaînements ;
@@ -55,6 +57,8 @@ Le barème `vertical-life-2026-v1` reprend l’échelle publique actuelle inspir
 Contrairement à 8a.nu, Topopote ne travaille pas sur douze mois glissants : la saison portée par chaque voie constitue la période de classement. Les étoiles, la recommandation, le commentaire et le ressenti de cotation n’ont aucun effet sur les points.
 
 Le partage communautaire est indépendant du classement public. Il est désactivé par défaut et peut être modifié dans les préférences du profil. Même lorsque ce partage est actif, l’adresse email, l’identifiant Auth et le carnet brut ne sont jamais exposés aux autres pratiquants.
+
+Activer le partage donne accès à la page Potes, rend le pseudo découvrable dans sa recherche par les autres pratiquants consentants et partage les enchaînements passés comme futurs. Un profil sans partage n’accède pas à cette page et n’apparaît jamais dans son annuaire. Le suivi est unidirectionnel : suivre quelqu’un n’oblige pas cette personne à suivre en retour. Chacun sait qui il suit et qui le suit. La relation de suivi ne donne jamais accès au carnet brut : le fil montre uniquement les enchaînements des comptes suivis dont le consentement de partage est actif. Retirer ce consentement masque immédiatement le pseudo et l’historique social, puis bloque l’annuaire, le fil et les actions de suivi. Le carnet et les relations existantes restent stockés, mais les relations demeurent invisibles jusqu’à une éventuelle réactivation.
 
 ### Hors périmètre actuel
 

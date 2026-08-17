@@ -54,6 +54,8 @@ Une fois la migration relue et appliquée, la page `#carnet` permet l’inscript
 
 Le partage des enchaînements est facultatif et désactivé par défaut. Il rend visibles aux seuls pratiquants connectés le pseudo, le style, les étoiles, la cotation ressentie et le commentaire ; il n’expose jamais l’email, l’identifiant Auth ni le carnet brut.
 
+La page `#potes` propose une recherche et une liste déroulante contenant tous les pseudos ayant activé le partage. Elle permet de suivre ou ne plus suivre un pratiquant, de distinguer « je suis » et « me suivent », puis de consulter les enchaînements partagés dans l’ordre chronologique. L’unique case **Partager mes enchaînements et commentaires avec les pratiquants connectés** se trouve dans les préférences du profil : l’activer donne accès à Potes, rend le pseudo découvrable et partage les enchaînements passés comme futurs dans les avis de voie et le fil des abonnés. Si elle est désactivée, la page devient inaccessible et le profil disparaît immédiatement de la recherche et des fils ; les relations sont conservées en base, mais restent invisibles jusqu’à une éventuelle réactivation.
+
 La matrice SQL `supabase/tests/database/20260817_climber_logbook_rls.test.sql` vérifie les droits anon, pratiquant et administrateur, l’isolation entre deux pratiquants, le propriétaire imposé par `auth.uid()`, le RPC public et la conservation des carnets. Après `supabase start` et `supabase db reset`, l’exécuter avec :
 
 ```powershell

@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import { completedRouteCount, emptyFilters, filterRoutes, gradeDistribution } from './lib/routes'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
 import ClimberArea from './ClimberArea'
+import FriendsArea from './FriendsArea'
 import OpenerFeedbackPage from './OpenerFeedbackPage'
 import PrimaryNav from './PrimaryNav'
 import RouteAscentsModal from './RouteAscentsModal'
@@ -184,9 +185,6 @@ export default function App() {
       return
     }
     setTopoActivityLoading(true)
-    setOwnAscents({})
-    setHasClimberProfile(false)
-    setSharesActivity(false)
     const [profileResult, ascentsResult] = await Promise.all([
       supabase.from('profils').select('user_id, partage_activite').eq('user_id', user.id).maybeSingle(),
       supabase.from('enchainements').select('voie_id, style').eq('user_id', user.id),
@@ -303,6 +301,7 @@ export default function App() {
         user={user}
         isAdmin={isAdmin}
         isOpener={isOpener}
+        canAccessFriends={sharesActivity}
         authLoading={authLoading}
         seasons={seasons}
         zones={zones}
@@ -323,6 +322,7 @@ export default function App() {
         user={user}
         isAdmin={isAdmin}
         isOpener={isOpener}
+        canAccessFriends={sharesActivity}
         authLoading={authLoading}
         routes={routes}
         seasons={seasons}
@@ -350,9 +350,21 @@ export default function App() {
     )
   }
 
+  if (page === 'potes') {
+    return (
+      <FriendsArea
+        user={user}
+        isAdmin={isAdmin}
+        isOpener={isOpener}
+        authLoading={authLoading}
+        onSignOut={signOut}
+      />
+    )
+  }
+
   return (
     <div className="site-shell">
-      <PrimaryNav page="" authenticated={Boolean(user)} isAdmin={isAdmin} isOpener={isOpener} loading={authLoading} onSignOut={signOut} />
+      <PrimaryNav page="" authenticated={Boolean(user)} isAdmin={isAdmin} isOpener={isOpener} canAccessFriends={sharesActivity} loading={authLoading} onSignOut={signOut} />
       <header className="hero">
         <div className="hero__content">
           <h1>TOPOPOTE</h1>
@@ -913,6 +925,7 @@ function AdminPage({
   user,
   isAdmin,
   isOpener,
+  canAccessFriends,
   authLoading,
   seasons,
   zones,
@@ -927,6 +940,7 @@ function AdminPage({
   user: User | null
   isAdmin: boolean
   isOpener: boolean
+  canAccessFriends: boolean
   authLoading: boolean
   seasons: Season[]
   zones: Zone[]
@@ -969,7 +983,7 @@ function AdminPage({
 
   return (
     <div className="site-shell">
-      <PrimaryNav page="admin" authenticated={Boolean(user)} isAdmin={isAdmin} isOpener={isOpener} loading={authLoading} onSignOut={onSignOut} />
+      <PrimaryNav page="admin" authenticated={Boolean(user)} isAdmin={isAdmin} isOpener={isOpener} canAccessFriends={canAccessFriends} loading={authLoading} onSignOut={onSignOut} />
       <header className="hero hero--admin">
         <div>
           <p className="eyebrow">Topopote · gestion du mur</p>

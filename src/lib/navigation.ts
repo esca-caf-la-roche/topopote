@@ -1,11 +1,11 @@
-export type AppPage = '' | 'carnet' | 'classement' | 'ouvreurs' | 'admin'
+export type AppPage = '' | 'carnet' | 'classement' | 'potes' | 'ouvreurs' | 'admin'
 
 export type NavigationItem = {
   page: AppPage
   label: string
 }
 
-export function navigationItems(authenticated: boolean, isAdmin: boolean, isOpener = false): NavigationItem[] {
+export function navigationItems(authenticated: boolean, isAdmin: boolean, isOpener = false, canAccessFriends = false): NavigationItem[] {
   if (!authenticated) return [{ page: 'carnet', label: 'Connexion' }]
   if (!isAdmin) {
     const items: NavigationItem[] = [
@@ -13,14 +13,16 @@ export function navigationItems(authenticated: boolean, isAdmin: boolean, isOpen
       { page: 'classement', label: 'Classement' },
       { page: 'carnet', label: 'Carnet' },
     ]
+    if (canAccessFriends) items.push({ page: 'potes', label: 'Potes' })
     if (isOpener) items.push({ page: 'ouvreurs', label: 'Retours voies' })
     return items
   }
-  return [
+  const items: NavigationItem[] = [
     { page: '', label: 'Topo' },
     { page: 'classement', label: 'Classement' },
     { page: 'carnet', label: 'Carnet' },
-    { page: 'ouvreurs', label: 'Retours voies' },
-    { page: 'admin', label: 'Admin' },
   ]
+  if (canAccessFriends) items.push({ page: 'potes', label: 'Potes' })
+  items.push({ page: 'ouvreurs', label: 'Retours voies' }, { page: 'admin', label: 'Admin' })
+  return items
 }

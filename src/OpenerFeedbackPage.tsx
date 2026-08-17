@@ -24,6 +24,7 @@ export default function OpenerFeedbackPage({
   user,
   isAdmin,
   isOpener,
+  canAccessFriends,
   authLoading,
   routes,
   seasons,
@@ -36,6 +37,7 @@ export default function OpenerFeedbackPage({
   user: User | null
   isAdmin: boolean
   isOpener: boolean
+  canAccessFriends: boolean
   authLoading: boolean
   routes: Route[]
   seasons: Season[]
@@ -103,7 +105,7 @@ export default function OpenerFeedbackPage({
 
   return (
     <div className="site-shell">
-      <PrimaryNav page="ouvreurs" authenticated={Boolean(user)} isAdmin={isAdmin} isOpener={isOpener} loading={authLoading} onSignOut={onSignOut} />
+      <PrimaryNav page="ouvreurs" authenticated={Boolean(user)} isAdmin={isAdmin} isOpener={isOpener} canAccessFriends={canAccessFriends} loading={authLoading} onSignOut={onSignOut} />
       <header className="hero hero--ouvreurs">
         <div className="hero__content">
           <p className="eyebrow">Topopote · retour d’expérience</p>
