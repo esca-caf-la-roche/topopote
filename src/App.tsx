@@ -160,6 +160,16 @@ export default function App() {
     return () => data.subscription.unsubscribe()
   }, [loadTopo, refreshAdmin])
 
+  const signOut = useCallback(async () => {
+    if (!supabase) return
+    const { error } = await supabase.auth.signOut()
+    if (error) {
+      setMessage({ kind: 'error', text: `Impossible de se déconnecter : ${error.message}` })
+      return
+    }
+    window.location.hash = ''
+  }, [])
+
   const loadTopoActivity = useCallback(async () => {
     const requestId = ++topoActivityRequest.current
     if (!supabase || !user) {
@@ -297,6 +307,7 @@ export default function App() {
         message={message}
         onChanged={loadTopo}
         onMessage={setMessage}
+        onSignOut={signOut}
       />
     )
   }
@@ -310,14 +321,14 @@ export default function App() {
         authLoading={authLoading}
         routes={routes}
         seasons={seasons}
-        onNavigate={(nextPage) => { window.location.hash = nextPage }}
+        onSignOut={signOut}
       />
     )
   }
 
   return (
     <div className="site-shell">
-      <PrimaryNav page="" authenticated={Boolean(user)} isAdmin={isAdmin} loading={authLoading} />
+      <PrimaryNav page="" authenticated={Boolean(user)} isAdmin={isAdmin} loading={authLoading} onSignOut={signOut} />
       <header className="hero">
         <div className="hero__content">
           <h1>TOPOPOTE</h1>
@@ -886,6 +897,7 @@ function AdminPage({
   message,
   onChanged,
   onMessage,
+  onSignOut,
 }: {
   user: User | null
   isAdmin: boolean
@@ -898,6 +910,7 @@ function AdminPage({
   message: Message
   onChanged: () => Promise<void>
   onMessage: (message: Message) => void
+  onSignOut: () => Promise<void>
 }) {
   const [email, setEmail] = useState('')
   const [otp, setOtp] = useState('')
@@ -928,13 +941,9 @@ function AdminPage({
     onMessage({ kind: 'success', text: 'Connexion réussie.' })
   }
 
-  async function signOut() {
-    await supabase?.auth.signOut()
-  }
-
   return (
     <div className="site-shell">
-      <PrimaryNav page="admin" authenticated={Boolean(user)} isAdmin={isAdmin} loading={authLoading} />
+      <PrimaryNav page="admin" authenticated={Boolean(user)} isAdmin={isAdmin} loading={authLoading} onSignOut={onSignOut} />
       <header className="hero hero--admin">
         <div>
           <p className="eyebrow">Topopote · gestion du mur</p>
@@ -972,13 +981,13 @@ function AdminPage({
         ) : !isAdmin ? (
           <div className="stack">
             <p>Ce compte est connecté, mais ne possède pas le rôle administrateur.</p>
-            <button className="button button--light" type="button" onClick={signOut}>Se déconnecter</button>
+            <button className="button button--light" type="button" onClick={() => void onSignOut()}>Se déconnecter</button>
           </div>
         ) : (
           <div className="stack stack--large">
             <div className="admin-session">
               <span>{user.email}</span>
-              <button type="button" onClick={signOut}>Se déconnecter</button>
+              <button type="button" onClick={() => void onSignOut()}>Se déconnecter</button>
             </div>
             <SeasonManager seasons={seasons} onChanged={onChanged} onMessage={onMessage} />
             <ReferenceForms zones={zones} relays={relays} colors={colors} grades={grades} onChanged={onChanged} onMessage={onMessage} />

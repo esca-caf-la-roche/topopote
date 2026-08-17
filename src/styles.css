@@ -28,6 +28,7 @@ button { cursor: pointer; }
 .primary-nav__link { display: inline-flex; min-width: 0; align-items: center; justify-content: center; padding: 9px 13px; border: 2px solid var(--ink); color: var(--ink); background: var(--paper); box-shadow: 3px 3px 0 var(--ink); font-weight: 900; overflow-wrap: anywhere; text-align: center; text-decoration: none; transition: transform .12s, box-shadow .12s; }
 .primary-nav__link:hover { transform: translate(1px, 1px); box-shadow: 2px 2px 0 var(--ink); }
 .primary-nav__link[aria-current='page'], .primary-nav__link--account { background: var(--pink); }
+.primary-nav__sign-out { background: var(--blue); }
 .primary-nav__status { font-size: .82rem; font-weight: 900; }
 .hero { display: flex; justify-content: space-between; gap: 32px; align-items: flex-start; padding: 48px; background: var(--yellow); border: var(--border); box-shadow: 10px 10px 0 var(--ink); }
 .eyebrow { margin: 0 0 16px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }

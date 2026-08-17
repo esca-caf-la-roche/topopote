@@ -6,7 +6,6 @@ import PrimaryNav from './PrimaryNav'
 import type { Ascent, AscentStyle, ClimberProfile, GradeFeeling, LeaderboardEntry, Route, Season } from './types'
 
 type Feedback = { kind: 'error' | 'success'; text: string } | null
-type Page = '' | 'carnet' | 'classement' | 'admin'
 type LeaderboardRow = {
   rang: number | string
   pseudo: string
@@ -24,14 +23,14 @@ function localDate() {
   const pad = (value: number) => String(value).padStart(2, '0')
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
 }
-export default function ClimberArea({ page, user, isAdmin, authLoading, routes, seasons, onNavigate }: {
+export default function ClimberArea({ page, user, isAdmin, authLoading, routes, seasons, onSignOut }: {
   page: 'carnet' | 'classement'
   user: User | null
   isAdmin: boolean
   authLoading: boolean
   routes: Route[]
   seasons: Season[]
-  onNavigate: (page: Page) => void
+  onSignOut: () => Promise<void>
 }) {
   const activeSeason = seasons.find((season) => season.active) ?? null
   const [selectedSeasonId, setSelectedSeasonId] = useState(activeSeason?.id ?? '')
@@ -94,7 +93,7 @@ export default function ClimberArea({ page, user, isAdmin, authLoading, routes, 
 
   return (
     <div className="site-shell">
-      <PrimaryNav page={page} authenticated={Boolean(user)} isAdmin={isAdmin} loading={authLoading} />
+      <PrimaryNav page={page} authenticated={Boolean(user)} isAdmin={isAdmin} loading={authLoading} onSignOut={onSignOut} />
       <header className={`hero hero--${page}`}>
         <div className="hero__content">
           <p className="eyebrow">Topopote · saison par saison</p>
@@ -111,7 +110,7 @@ export default function ClimberArea({ page, user, isAdmin, authLoading, routes, 
             : !profile ? isAdmin
               ? <p className="empty-state message--error">Le profil privé de l’administrateur est introuvable. Recharge la page ou contacte le support.</p>
               : <ProfileSetup user={user} onCreated={loadPersonalData} onFeedback={setFeedback} />
-            : <Logbook profile={profile} activeSeason={activeSeason} selectedSeasonId={selectedSeasonId} seasons={seasons} routes={routes} ascents={ascents} loading={loading} leaderboard={leaderboard} onSeasonChange={setSelectedSeasonId} onChanged={reload} onFeedback={setFeedback} onSignOut={async () => { await supabase?.auth.signOut(); onNavigate('') }} />}
+            : <Logbook profile={profile} activeSeason={activeSeason} selectedSeasonId={selectedSeasonId} seasons={seasons} routes={routes} ascents={ascents} loading={loading} leaderboard={leaderboard} onSeasonChange={setSelectedSeasonId} onChanged={reload} onFeedback={setFeedback} onSignOut={onSignOut} />}
     </div>
   )
 }
