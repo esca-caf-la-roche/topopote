@@ -2,7 +2,45 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(39);
+select plan(41);
+
+select results_eq(
+  $$select fonction.proname
+    from pg_proc fonction
+    join pg_namespace schema_fonction on schema_fonction.oid = fonction.pronamespace
+    where schema_fonction.nspname = 'public'
+      and fonction.prokind = 'f'
+      and fonction.prorettype <> 'trigger'::regtype
+      and has_function_privilege('anon', fonction.oid, 'EXECUTE')
+    order by fonction.proname$$,
+  $$values ('classement_saison'::name)$$,
+  'anon ne peut exécuter que le RPC public de classement'
+);
+
+select results_eq(
+  $$select fonction.proname
+    from pg_proc fonction
+    join pg_namespace schema_fonction on schema_fonction.oid = fonction.pronamespace
+    where schema_fonction.nspname = 'public'
+      and fonction.prokind = 'f'
+      and fonction.prorettype <> 'trigger'::regtype
+      and has_function_privilege('authenticated', fonction.oid, 'EXECUTE')
+    order by fonction.proname$$,
+  $$values
+    ('ajouter_cotation'::name),
+    ('ajouter_zone'::name),
+    ('annuaire_pratiquants'::name),
+    ('avis_voie'::name),
+    ('classement_saison'::name),
+    ('fil_activite_pratiquants'::name),
+    ('modifier_cotation'::name),
+    ('modifier_zone'::name),
+    ('retours_ouvreurs'::name),
+    ('suivre_pratiquant'::name),
+    ('supprimer_cotation'::name),
+    ('supprimer_zone'::name)$$,
+  'authenticated ne peut exécuter que les RPC explicitement prévues'
+);
 
 select ok(
   not has_table_privilege('anon', 'public.profils', 'select'),
