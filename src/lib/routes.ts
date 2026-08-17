@@ -60,22 +60,24 @@ export function gradeDistribution(
 
   for (const grade of grades) {
     const label = distributionLabel(grade)
-    const current = distribution.get(label)
+    const key = `${label}\u0000${grade.difficulty}`
+    const current = distribution.get(key)
     if (current) {
       current.rank = Math.min(current.rank, grade.rank)
     } else {
-      distribution.set(label, { label, difficulty: grade.difficulty, count: 0, completedCount: 0, percentage: 0, rank: grade.rank })
+      distribution.set(key, { label, difficulty: grade.difficulty, count: 0, completedCount: 0, percentage: 0, rank: grade.rank })
     }
   }
 
   for (const route of routes) {
     const label = distributionLabel(route.grade)
-    const current = distribution.get(label)
+    const key = `${label}\u0000${route.grade.difficulty}`
+    const current = distribution.get(key)
     if (current) {
       current.count += 1
       current.completedCount += Number(completedRouteIds.has(route.id))
     } else {
-      distribution.set(label, {
+      distribution.set(key, {
         label,
         difficulty: route.grade.difficulty,
         count: 1,

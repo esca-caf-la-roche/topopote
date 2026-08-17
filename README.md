@@ -1,6 +1,6 @@
 # topopote
 
-Le topo sans prise de tête du mur d’escalade de Saint-Pierre-en-Faucigny, avec gestion réservée aux administrateurs.
+Le topo sans prise de tête du mur d’escalade de Saint-Pierre-en-Faucigny. Les administrateurs gèrent le topo et ses référentiels ; chaque pratiquant gère uniquement son profil, son carnet et ses suivis.
 
 ## Démarrer en local
 
@@ -52,11 +52,11 @@ supabase db push --linked --dry-run --skip-vault
 
 Une fois la migration relue et appliquée, la page `#carnet` permet l’inscription et la saisie des voies ; `#classement` reste publique. Lorsqu’un pratiquant est connecté, chaque carte du topo permet aussi d’ajouter directement son enchaînement. Les voies déjà enregistrées prennent une teinte claire liée au style, et leur détail affiche les avis que leurs auteurs ont choisi de partager. Le score additionne les dix meilleures voies de la saison selon le barème `vertical-life-2026-v1` documenté dans `docs/OBJECTIF_ET_PERIMETRE.md`.
 
-Le partage des enchaînements est facultatif et désactivé par défaut. Il rend visibles aux seuls pratiquants connectés le pseudo, le style, les étoiles, la cotation ressentie et le commentaire ; il n’expose jamais l’email, l’identifiant Auth ni le carnet brut.
+Le partage des enchaînements est facultatif et désactivé par défaut. Il rend visibles aux seuls pratiquants connectés le pseudo, le style, les étoiles, la cotation ressentie et le commentaire ; il n’expose jamais l’email, l’identifiant Auth ni le carnet brut. Ce consentement communautaire ne masque pas les retours aux ouvreurs et administrateurs : leurs pages de suivi affichent tous les retours enregistrés, y compris lorsque le pratiquant ne partage pas son activité avec la communauté.
 
 La page `#potes` propose une recherche et une liste déroulante contenant tous les pseudos ayant activé le partage. Elle permet de suivre ou ne plus suivre un pratiquant, de distinguer « je suis » et « me suivent », puis de consulter les enchaînements partagés dans l’ordre chronologique. L’unique case **Partager mes enchaînements et commentaires avec les pratiquants connectés** se trouve dans les préférences du profil : l’activer donne accès à Potes, rend le pseudo découvrable et partage les enchaînements passés comme futurs dans les avis de voie et le fil des abonnés. Si elle est désactivée, la page devient inaccessible et le profil disparaît immédiatement de la recherche et des fils ; les relations sont conservées en base, mais restent invisibles jusqu’à une éventuelle réactivation.
 
-La matrice SQL `supabase/tests/database/20260817_climber_logbook_rls.test.sql` vérifie les droits anon, pratiquant et administrateur, l’isolation entre deux pratiquants, le propriétaire imposé par `auth.uid()`, le RPC public et la conservation des carnets. Après `supabase start` et `supabase db reset`, l’exécuter avec :
+Les matrices pgTAP `supabase/tests/database/20260817_climber_logbook_rls.test.sql` et `supabase/tests/database/20260817_practitioner_following_rls.test.sql` vérifient respectivement le carnet, les retours ouvreurs et le classement, puis l’annuaire Potes, les suivis, le fil et le retrait du consentement. Elles couvrent les droits anon, pratiquant, ouvreur et administrateur, l’isolation entre pratiquants, les propriétaires imposés par `auth.uid()` et les RPC exposés. Après `supabase start` et `supabase db reset`, les exécuter ensemble avec :
 
 ```powershell
 npm.cmd run test:db
@@ -72,7 +72,7 @@ Dans l’administration, respecter cet ordre :
 4. créer les couleurs et cotations, puis choisir leur difficulté (Facile, Modéré, Difficile ou Extrême) ;
 5. revenir au topo public, activer le mode édition puis ajouter les voies depuis le groupe relais ou cotation voulu.
 
-Activer une nouvelle saison désactive automatiquement l’ancienne, sans supprimer son topo. Le public et la liste de gestion affichent uniquement les voies de la saison active.
+Activer une nouvelle saison désactive automatiquement l’ancienne, sans supprimer son topo. Le public et la liste de gestion affichent uniquement les voies de la saison active. Une saison active est également obligatoire pour créer une voie : la base ignore la saison proposée par le client, rattache la voie à la saison active et refuse l’écriture si aucune saison n’est active.
 Les voies n’ont pas d’ordre manuel : le visiteur choisit un affichage regroupé par relais ou par cotation.
 
 ## Commandes de vérification
@@ -91,5 +91,15 @@ Configurer dans les secrets du dépôt :
 - `VITE_SUPABASE_PUBLISHABLE_KEY`.
 
 Puis activer **Settings > Pages > Source: GitHub Actions**. Chaque push sur `main` compile et publie le site.
+
+GitHub Pages ne déploie que le frontend : le workflow teste les migrations sur une base Supabase locale, mais ne modifie jamais le projet hébergé. Pour toute version qui ajoute une migration, respecter cette checklist avant de pousser `main` :
+
+1. relire les migrations en attente avec `supabase db push --linked --dry-run --skip-vault` ;
+2. appliquer les migrations validées avec `supabase db push --linked --skip-vault` ;
+3. confirmer avec `supabase migration list --linked` que l’historique local et distant est aligné ;
+4. pousser `main`, puis attendre que les jobs `database-tests`, `build` et `deploy` soient tous verts ;
+5. vérifier que le SHA du déploiement GitHub Pages correspond exactement au commit validé, puis effectuer un contrôle rapide du topo public et des pages authentifiées concernées.
+
+Le build de production échoue volontairement si l’un des deux secrets Vite est absent, sans afficher leurs valeurs. Une compilation locale ou un artefact chargé ne prouve donc pas à lui seul que la version attendue est publiée : le job `deploy` et son SHA font foi.
 
 Le périmètre fonctionnel détaillé se trouve dans `docs/OBJECTIF_ET_PERIMETRE.md` et les choix techniques dans `docs/ARCHITECTURE.md`.

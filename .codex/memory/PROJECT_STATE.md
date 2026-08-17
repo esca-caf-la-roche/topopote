@@ -2,7 +2,7 @@
 
 ## Current phase
 
-Phase 2 integration in progress: ranking, route-level sharing, opener feedback and practitioner following are deployed to Supabase; the friends frontend remains local and unpushed.
+Phase 2 release stabilization: ranking, route-level sharing, opener feedback and practitioner following are on `main`, and their schema is deployed to Supabase. GitHub Pages still serves the previous successful commit because the current Potes pgTAP fixture blocks the deployment workflow.
 
 ## Done
 
@@ -52,7 +52,7 @@ Phase 2 integration in progress: ranking, route-level sharing, opener feedback a
 - Executed the 40 social pgTAP assertions against the deployed schema inside a rollback transaction; the final assertion passed and no test fixture persisted.
 - Verified the deployed social table has RLS enabled, direct authenticated table reads are refused, authenticated RPC access is granted, anonymous annuaire access is refused, and every existing profile has a unique non-null public social ID.
 - Re-ran Supabase advisors after deployment: no performance findings; only the intentional executable `SECURITY DEFINER` RPC warnings and the pre-existing OTP-irrelevant password-protection warning remain.
-- Validated the frontend with ESLint, 32/32 Vitest tests, a production build, and a public browser check at 320 px without overflow or console errors.
+- Validated the frontend with ESLint, 37/37 Vitest tests, a production build, and a public browser check at 320 px without overflow or console errors.
 
 ## Remaining
 
@@ -60,18 +60,18 @@ Phase 2 integration in progress: ranking, route-level sharing, opener feedback a
 - Enable hosted email sign-up through the dashboard, then install/confirm the neutral six-digit OTP template.
 - Validate the connected route modal, direct entry, consent withdrawal and color refresh end to end with two real practitioner accounts.
 - Validate discoverability, reciprocal states, follow/unfollow and the chronological feed with at least three real practitioner accounts.
-- Commit the route-details feature together with the still-local role navigation and automatic admin-profile changes before publishing.
+- Fix and rerun the Potes pgTAP matrix, then confirm that all database, build and deployment jobs pass and that GitHub Pages serves the validated commit SHA.
 
 ## Known issues and blockers
 
 - The hosted project is linked and its schema is deployed.
 - Docker/Podman is unavailable, so the migration cannot be tested with local Supabase containers.
 - The route-details migration is applied remotely and aligned with local history.
-- GitHub Pages secrets are not configured yet.
+- The current `main` workflow fails in the Potes pgTAP fixture before deployment because its test route is inserted without an active season.
 - Hosted Supabase email sign-up must be enabled separately; changing `supabase/config.toml` does not prove the remote Auth setting.
 - The public ranking RPC intentionally uses a narrowly scoped `SECURITY DEFINER`; Supabase advisors therefore report the expected anonymous/authenticated executable-function warnings.
 - Password-leak protection remains disabled but is not used by the OTP-only flows.
-- OTP behavior is not yet integration-tested; no frontend publication or production deployment has been performed for phase 2.
+- OTP behavior is not yet integration-tested; the latest Potes frontend has not yet been published.
 - The authenticated route modal can now be exercised against the hosted project; two-account browser validation is still pending.
-- The practitioner-following migration is applied remotely and aligned with local history; the friends frontend is not yet published.
+- The practitioner-following migration is applied remotely and aligned with local history; the friends frontend is on `main` but is not yet published by Pages.
 - The friends directory and feed are intentionally MVP-bounded: client-side directory search and the 50 latest feed entries, without blocking or pagination yet.

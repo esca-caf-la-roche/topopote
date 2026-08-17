@@ -11,6 +11,7 @@ import RouteAscentsModal from './RouteAscentsModal'
 import { resolveAuthenticatedRoles } from './lib/authRoles'
 import { routeAscentBackgrounds } from './lib/routeAscents'
 import { styleLabels } from './lib/scoring'
+import { usePendingAction } from './lib/usePendingAction'
 import type { AscentStyle, Color, Grade, Relay, Route, RouteFilters, RouteSort, Season, Zone } from './types'
 
 type Message = { kind: 'error' | 'success'; text: string } | null
@@ -18,6 +19,14 @@ type DistributionView = 'grade' | 'zone'
 type RouteSelection = { route: Route; mode: 'details' | 'add' }
 
 const difficulties: Grade['difficulty'][] = ['Facile', 'Modéré', 'Difficile', 'Extrême']
+const databasePageSize = 1000
+const routeSelection = 'id, demi_voie, saison_id, relais_id, couleur_id, cotation_id, saison:saisons(id, nom, active), relais:relais(id, numero, zone_id, zone:zones(id, nom, ordre)), couleur:couleurs(id, nom, hex), cotation:cotations(id, libelle, rang, points, difficulte)'
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : typeof error === 'object' && error && 'message' in error
+    ? String(error.message)
+    : 'Erreur inconnue.'
+}
 
 function relation<T>(value: T | T[] | null): T {
   if (Array.isArray(value)) return value[0]
@@ -56,73 +65,63 @@ export default function App() {
   const loadTopo = useCallback(async () => {
     if (!supabase) return
     setLoading(true)
+    try {
+      const [routesResult, seasonsResult, zonesResult, relaysResult, colorsResult, gradesResult] = await Promise.all([
+        supabase.from('voies').select(routeSelection).order('id').range(0, databasePageSize - 1),
+        supabase.from('saisons').select('id, nom, active').order('active', { ascending: false }).order('created_at', { ascending: false }),
+        supabase.from('zones').select('id, nom, ordre').order('ordre'),
+        supabase.from('relais').select('id, numero, zone_id, zone:zones(id, nom, ordre)').order('numero'),
+        supabase.from('couleurs').select('id, nom, hex').order('nom'),
+        supabase.from('cotations').select('id, libelle, rang, points, difficulte').order('rang'),
+      ])
 
-    const [routesResult, seasonsResult, zonesResult, relaysResult, colorsResult, gradesResult] = await Promise.all([
-      supabase
-        .from('voies')
-        .select(
-          'id, demi_voie, saison_id, relais_id, couleur_id, cotation_id, saison:saisons(id, nom, active), relais:relais(id, numero, zone_id, zone:zones(id, nom, ordre)), couleur:couleurs(id, nom, hex), cotation:cotations(id, libelle, rang, points, difficulte)',
-        ),
-      supabase.from('saisons').select('id, nom, active').order('active', { ascending: false }).order('created_at', { ascending: false }),
-      supabase.from('zones').select('id, nom, ordre').order('ordre'),
-      supabase.from('relais').select('id, numero, zone_id, zone:zones(id, nom, ordre)').order('numero'),
-      supabase.from('couleurs').select('id, nom, hex').order('nom'),
-      supabase.from('cotations').select('id, libelle, rang, points, difficulte').order('rang'),
-    ])
+      const error = routesResult.error || seasonsResult.error || zonesResult.error || relaysResult.error || colorsResult.error || gradesResult.error
+      if (error) throw error
 
-    const error =
-      routesResult.error || seasonsResult.error || zonesResult.error || relaysResult.error || colorsResult.error || gradesResult.error
-    if (error) {
-      setMessage({ kind: 'error', text: `Impossible de charger le topo : ${error.message}` })
+      const routeRows = [...(routesResult.data ?? [])]
+      let fetchedCount = routesResult.data?.length ?? 0
+      while (fetchedCount === databasePageSize) {
+        const nextResult = await supabase.from('voies').select(routeSelection).order('id').range(routeRows.length, routeRows.length + databasePageSize - 1)
+        if (nextResult.error) throw nextResult.error
+        const nextRows = nextResult.data ?? []
+        routeRows.push(...nextRows)
+        fetchedCount = nextRows.length
+      }
+
+      const mappedRoutes = routeRows.map((row) => {
+        const relay = relation(row.relais)
+        const season = relation(row.saison)
+        const zone = relation(relay.zone)
+        const color = relation(row.couleur)
+        const grade = relation(row.cotation)
+        return {
+          id: row.id,
+          isHalfRoute: row.demi_voie,
+          seasonId: row.saison_id,
+          relayId: row.relais_id,
+          colorId: row.couleur_id,
+          gradeId: row.cotation_id,
+          season: { id: season.id, name: season.nom, active: season.active },
+          relay: { id: relay.id, number: relay.numero, zoneId: relay.zone_id, zone: { id: zone.id, name: zone.nom, order: zone.ordre } },
+          color: { id: color.id, name: color.nom, hex: color.hex },
+          grade: { id: grade.id, label: grade.libelle, rank: grade.rang, points: grade.points, difficulty: grade.difficulte },
+        }
+      })
+
+      setRoutes(mappedRoutes)
+      setSeasons((seasonsResult.data ?? []).map((row) => ({ id: row.id, name: row.nom, active: row.active })))
+      setZones((zonesResult.data ?? []).map((row) => ({ id: row.id, name: row.nom, order: row.ordre })))
+      setRelays((relaysResult.data ?? []).map((row) => {
+        const zone = relation(row.zone)
+        return { id: row.id, number: row.numero, zoneId: row.zone_id, zone: { id: zone.id, name: zone.nom, order: zone.ordre } }
+      }))
+      setColors((colorsResult.data ?? []).map((row) => ({ id: row.id, name: row.nom, hex: row.hex })))
+      setGrades((gradesResult.data ?? []).map((row) => ({ id: row.id, label: row.libelle, rank: row.rang, points: row.points, difficulty: row.difficulte })))
+    } catch (error) {
+      setMessage({ kind: 'error', text: `Impossible de charger le topo : ${errorMessage(error)}` })
+    } finally {
       setLoading(false)
-      return
     }
-
-    const mappedRoutes = (routesResult.data ?? []).map((row) => {
-      const relay = relation(row.relais)
-      const season = relation(row.saison)
-      const zone = relation(relay.zone)
-      const color = relation(row.couleur)
-      const grade = relation(row.cotation)
-      return {
-        id: row.id,
-        isHalfRoute: row.demi_voie,
-        seasonId: row.saison_id,
-        relayId: row.relais_id,
-        colorId: row.couleur_id,
-        gradeId: row.cotation_id,
-        season: { id: season.id, name: season.nom, active: season.active },
-        relay: {
-          id: relay.id,
-          number: relay.numero,
-          zoneId: relay.zone_id,
-          zone: { id: zone.id, name: zone.nom, order: zone.ordre },
-        },
-        color: { id: color.id, name: color.nom, hex: color.hex },
-        grade: { id: grade.id, label: grade.libelle, rank: grade.rang, points: grade.points, difficulty: grade.difficulte },
-      }
-    })
-
-    setRoutes(mappedRoutes)
-    const mappedSeasons = (seasonsResult.data ?? []).map((row) => ({ id: row.id, name: row.nom, active: row.active }))
-    setSeasons(mappedSeasons)
-    setZones((zonesResult.data ?? []).map((row) => ({ id: row.id, name: row.nom, order: row.ordre })))
-    setRelays((relaysResult.data ?? []).map((row) => {
-      const zone = relation(row.zone)
-      return {
-        id: row.id,
-        number: row.numero,
-        zoneId: row.zone_id,
-        zone: { id: zone.id, name: zone.nom, order: zone.ordre },
-      }
-    }))
-    setColors(
-      (colorsResult.data ?? []).map((row) => ({ id: row.id, name: row.nom, hex: row.hex })),
-    )
-    setGrades(
-      (gradesResult.data ?? []).map((row) => ({ id: row.id, label: row.libelle, rank: row.rang, points: row.points, difficulty: row.difficulte })),
-    )
-    setLoading(false)
   }, [])
 
   const refreshRoles = useCallback(async (nextUser: User | null) => {
@@ -308,6 +307,7 @@ export default function App() {
         relays={relays}
         colors={colors}
         grades={grades}
+        topoLoading={loading}
         message={message}
         onChanged={loadTopo}
         onMessage={setMessage}
@@ -390,7 +390,7 @@ export default function App() {
         </div>
       )}
 
-      {message && <div className={`message message--${message.kind}`}>{message.text}</div>}
+      {message && <div className={`message message--${message.kind}`} role={message.kind === 'error' ? 'alert' : 'status'} aria-live={message.kind === 'error' ? 'assertive' : 'polite'}>{message.text}</div>}
 
       {selectedRoute && user && (
         <RouteAscentsModal
@@ -702,6 +702,47 @@ export default function App() {
   )
 }
 
+function useDialogFocus(onClose: () => void) {
+  const dialogRef = useRef<HTMLElement>(null)
+
+  useEffect(() => {
+    const returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const previousOverflow = document.body.style.overflow
+    const focusableSelector = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose()
+        return
+      }
+      if (event.key !== 'Tab' || !dialogRef.current) return
+      const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(focusableSelector))
+        .filter((element) => !element.hasAttribute('hidden'))
+      const first = focusable[0]
+      const last = focusable.at(-1)
+      if (!first || !last) {
+        event.preventDefault()
+        dialogRef.current.focus()
+      } else if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+    document.body.style.overflow = 'hidden'
+    window.addEventListener('keydown', handleKeyDown)
+    dialogRef.current?.querySelector<HTMLElement>(focusableSelector)?.focus()
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', handleKeyDown)
+      if (returnFocus?.isConnected) returnFocus.focus()
+    }
+  }, [onClose])
+
+  return dialogRef
+}
+
 function RouteModal({ onClose, ...routeFormProps }: {
   activeSeason: Season | null
   relays: Relay[]
@@ -713,24 +754,13 @@ function RouteModal({ onClose, ...routeFormProps }: {
   onChanged: () => Promise<void>
   onMessage: (message: Message) => void
 }) {
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
-    }
-    document.body.style.overflow = 'hidden'
-    window.addEventListener('keydown', closeOnEscape)
-    return () => {
-      document.body.style.overflow = previousOverflow
-      window.removeEventListener('keydown', closeOnEscape)
-    }
-  }, [onClose])
+  const dialogRef = useDialogFocus(onClose)
 
   return createPortal(
     <div className="modal-backdrop" onMouseDown={(event) => {
       if (event.target === event.currentTarget) onClose()
     }}>
-      <section className="modal" role="dialog" aria-modal="true" aria-labelledby="route-modal-title">
+      <section ref={dialogRef} className="modal" role="dialog" aria-modal="true" aria-labelledby="route-modal-title" tabIndex={-1}>
         <button className="modal__close" type="button" aria-label="Fermer" onClick={onClose}>×</button>
         <RouteForm {...routeFormProps} onCancel={onClose} titleId="route-modal-title" />
       </section>
@@ -932,6 +962,7 @@ function AdminPage({
   relays,
   colors,
   grades,
+  topoLoading,
   message,
   onChanged,
   onMessage,
@@ -947,6 +978,7 @@ function AdminPage({
   relays: Relay[]
   colors: Color[]
   grades: Grade[]
+  topoLoading: boolean
   message: Message
   onChanged: () => Promise<void>
   onMessage: (message: Message) => void
@@ -981,6 +1013,12 @@ function AdminPage({
     onMessage({ kind: 'success', text: 'Connexion réussie.' })
   }
 
+  function changeEmail() {
+    setOtpSent(false)
+    setOtp('')
+    onMessage(null)
+  }
+
   return (
     <div className="site-shell">
       <PrimaryNav page="admin" authenticated={Boolean(user)} isAdmin={isAdmin} isOpener={isOpener} canAccessFriends={canAccessFriends} loading={authLoading} onSignOut={onSignOut} />
@@ -992,7 +1030,7 @@ function AdminPage({
         </div>
       </header>
 
-      {message && <div className={`message message--${message.kind}`}>{message.text}</div>}
+      {message && <div className={`message message--${message.kind}`} role={message.kind === 'error' ? 'alert' : 'status'} aria-live={message.kind === 'error' ? 'assertive' : 'polite'}>{message.text}</div>}
 
       <main className="admin-page">
         <section className="admin-panel" aria-labelledby="admin-title">
@@ -1006,13 +1044,16 @@ function AdminPage({
             <p>L’accès est réservé aux administrateurs déjà enregistrés.</p>
             <label>
               <span>Adresse email</span>
-              <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required autoComplete="email" />
+              <input type="email" value={email} disabled={otpSent} onChange={(event) => setEmail(event.target.value)} required autoComplete="email" />
             </label>
             {otpSent && (
-              <label>
-                <span>Code à 6 chiffres</span>
-                <input value={otp} onChange={(event) => setOtp(event.target.value)} required inputMode="numeric" pattern="[0-9]{6}" autoComplete="one-time-code" />
-              </label>
+              <>
+                <label>
+                  <span>Code à 6 chiffres</span>
+                  <input value={otp} onChange={(event) => setOtp(event.target.value)} required inputMode="numeric" pattern="[0-9]{6}" autoComplete="one-time-code" />
+                </label>
+                <button className="button button--light" type="button" disabled={busy} onClick={changeEmail}>Changer d’adresse email</button>
+              </>
             )}
             <button className="button button--accent" disabled={busy}>
               {busy ? 'Patiente…' : otpSent ? 'Valider le code' : 'Recevoir mon code'}
@@ -1023,6 +1064,8 @@ function AdminPage({
             <p>Ce compte est connecté, mais ne possède pas le rôle administrateur.</p>
             <button className="button button--light" type="button" onClick={() => void onSignOut()}>Se déconnecter</button>
           </div>
+        ) : topoLoading ? (
+          <p className="empty-state">Chargement des données d’administration…</p>
         ) : (
           <div className="stack stack--large">
             <div className="admin-session">
@@ -1050,7 +1093,7 @@ function PractitionerManager({ onMessage }: { onMessage: (message: Message) => v
     setLoading(true)
     const [profilesResult, ascentsResult, openersResult] = await Promise.all([
       supabase.from('profils').select('user_id, pseudo, classement_public').order('pseudo'),
-      supabase.from('enchainements').select('user_id'),
+      supabase.from('enchainements').select('user_id').order('id').range(0, databasePageSize - 1),
       supabase.from('ouvreurs').select('user_id'),
     ])
     const error = profilesResult.error || ascentsResult.error || openersResult.error
@@ -1059,8 +1102,21 @@ function PractitionerManager({ onMessage }: { onMessage: (message: Message) => v
       setLoading(false)
       return
     }
+    const ascentRows = [...(ascentsResult.data ?? [])]
+    let fetchedCount = ascentsResult.data?.length ?? 0
+    while (fetchedCount === databasePageSize) {
+      const nextResult = await supabase.from('enchainements').select('user_id').order('id').range(ascentRows.length, ascentRows.length + databasePageSize - 1)
+      if (nextResult.error) {
+        onMessage({ kind: 'error', text: `Pratiquants indisponibles : ${nextResult.error.message}` })
+        setLoading(false)
+        return
+      }
+      const nextRows = nextResult.data ?? []
+      ascentRows.push(...nextRows)
+      fetchedCount = nextRows.length
+    }
     const counts = new Map<string, number>()
-    for (const ascent of ascentsResult.data ?? []) counts.set(ascent.user_id, (counts.get(ascent.user_id) ?? 0) + 1)
+    for (const ascent of ascentRows) counts.set(ascent.user_id, (counts.get(ascent.user_id) ?? 0) + 1)
     const openerIds = new Set((openersResult.data ?? []).map((opener) => opener.user_id))
     setProfiles((profilesResult.data ?? []).map((profile) => ({
       userId: profile.user_id,
@@ -1133,20 +1189,17 @@ function RouteForm({ activeSeason, relays, colors, grades, initialRelayId, initi
   const [colorId, setColorId] = useState('')
   const [gradeId, setGradeId] = useState(initialGradeId ?? '')
   const [isHalfRoute, setIsHalfRoute] = useState(false)
+  const { pending, run } = usePendingAction()
 
   async function submit(event: FormEvent) {
     event.preventDefault()
     if (!activeSeason) return onMessage({ kind: 'error', text: 'Active une saison avant d’ajouter une voie.' })
-    const { error } = await supabase!.from('voies').insert({
-      saison_id: activeSeason.id,
-      relais_id: relayId,
-      couleur_id: colorId,
-      cotation_id: gradeId,
-      demi_voie: isHalfRoute,
+    await run(async () => {
+      const { error } = await supabase!.from('voies').insert({ saison_id: activeSeason.id, relais_id: relayId, couleur_id: colorId, cotation_id: gradeId, demi_voie: isHalfRoute })
+      if (error) return onMessage({ kind: 'error', text: error.message })
+      onMessage({ kind: 'success', text: 'La voie a été ajoutée.' })
+      await onChanged()
     })
-    if (error) return onMessage({ kind: 'error', text: error.message })
-    onMessage({ kind: 'success', text: 'La voie a été ajoutée.' })
-    await onChanged()
   }
 
   return (
@@ -1160,8 +1213,8 @@ function RouteForm({ activeSeason, relays, colors, grades, initialRelayId, initi
         <label className="checkbox-label"><input type="checkbox" checked={isHalfRoute} onChange={(event) => setIsHalfRoute(event.target.checked)} /><span>1/2 voie</span></label>
       </div>
       <div className="admin-actions">
-        <ActionButton className="button button--accent" icon="save" label="Enregistrer la voie" disabled={!activeSeason} />
-        <button className="button" type="button" onClick={onCancel}>Annuler</button>
+        <ActionButton className="button button--accent" icon="save" label={pending ? 'Enregistrement de la voie' : 'Enregistrer la voie'} disabled={pending || !activeSeason} />
+        <button className="button" type="button" disabled={pending} onClick={onCancel}>Annuler</button>
       </div>
     </form>
   )
@@ -1206,27 +1259,27 @@ function RouteEditor({ route, relays, colors, grades, compact = false, onChanged
   const [colorId, setColorId] = useState(route.colorId)
   const [gradeId, setGradeId] = useState(route.gradeId)
   const [isHalfRoute, setIsHalfRoute] = useState(route.isHalfRoute)
+  const { pending, run } = usePendingAction()
 
   async function save(event: FormEvent) {
     event.preventDefault()
-    const { error } = await supabase!.from('voies').update({
-      relais_id: relayId,
-      couleur_id: colorId,
-      cotation_id: gradeId,
-      demi_voie: isHalfRoute,
-    }).eq('id', route.id)
-    if (error) return onMessage({ kind: 'error', text: error.message })
-    onMessage({ kind: 'success', text: 'La voie a été modifiée.' })
-    setEditing(false)
-    await onChanged()
+    await run(async () => {
+      const { error } = await supabase!.from('voies').update({ relais_id: relayId, couleur_id: colorId, cotation_id: gradeId, demi_voie: isHalfRoute }).eq('id', route.id)
+      if (error) return onMessage({ kind: 'error', text: error.message })
+      onMessage({ kind: 'success', text: 'La voie a été modifiée.' })
+      setEditing(false)
+      await onChanged()
+    })
   }
 
   async function remove() {
     if (!window.confirm(`Supprimer la voie du relais ${route.relay.number} ?`)) return
-    const { error } = await supabase!.from('voies').delete().eq('id', route.id)
-    if (error) return onMessage({ kind: 'error', text: error.message })
-    onMessage({ kind: 'success', text: 'La voie a été supprimée.' })
-    await onChanged()
+    await run(async () => {
+      const { error } = await supabase!.from('voies').delete().eq('id', route.id)
+      if (error) return onMessage({ kind: 'error', text: error.message })
+      onMessage({ kind: 'success', text: 'La voie a été supprimée.' })
+      await onChanged()
+    })
   }
 
   if (editing) {
@@ -1239,8 +1292,8 @@ function RouteEditor({ route, relays, colors, grades, compact = false, onChanged
           <label className="checkbox-label"><input type="checkbox" checked={isHalfRoute} onChange={(event) => setIsHalfRoute(event.target.checked)} /><span>1/2 voie</span></label>
         </div>
         <div className="admin-actions">
-          <ActionButton className="button button--small button--accent" icon="save" label="Enregistrer les modifications" type="submit" />
-          <button className="button button--small" type="button" onClick={() => setEditing(false)}>Annuler</button>
+          <ActionButton className="button button--small button--accent" icon="save" label="Enregistrer les modifications" type="submit" disabled={pending} />
+          <button className="button button--small" type="button" disabled={pending} onClick={() => setEditing(false)}>Annuler</button>
         </div>
       </form>
     )
@@ -1250,8 +1303,8 @@ function RouteEditor({ route, relays, colors, grades, compact = false, onChanged
     <article className={`editable-route ${compact ? 'editable-route--compact' : ''}`}>
       <RouteCard route={route} />
       <div className="admin-actions">
-        <ActionButton icon="edit" label="Modifier la voie" type="button" onClick={() => setEditing(true)} />
-        <ActionButton className="danger-action" icon="delete" label="Supprimer la voie" type="button" onClick={() => void remove()} />
+        <ActionButton icon="edit" label="Modifier la voie" type="button" disabled={pending} onClick={() => setEditing(true)} />
+        <ActionButton className="danger-action" icon="delete" label="Supprimer la voie" type="button" disabled={pending} onClick={() => void remove()} />
       </div>
     </article>
   )
@@ -1265,34 +1318,38 @@ function SeasonManager({ seasons, onChanged, onMessage }: {
   const [adding, setAdding] = useState(false)
   const [name, setName] = useState('')
   const [active, setActive] = useState(seasons.length === 0)
+  const { pending, run } = usePendingAction()
 
   async function submit(event: FormEvent) {
     event.preventDefault()
-    const { error } = await supabase!.from('saisons').insert({
-      nom: name,
-      active,
+    await run(async () => {
+      const { error } = await supabase!.from('saisons').insert({ nom: name, active })
+      if (error) return onMessage({ kind: 'error', text: error.message })
+      setName('')
+      setActive(false)
+      setAdding(false)
+      onMessage({ kind: 'success', text: 'La saison a été ajoutée.' })
+      await onChanged()
     })
-    if (error) return onMessage({ kind: 'error', text: error.message })
-    setName('')
-    setActive(false)
-    setAdding(false)
-    onMessage({ kind: 'success', text: 'La saison a été ajoutée.' })
-    await onChanged()
   }
 
   async function activate(seasonId: string) {
-    const { error } = await supabase!.from('saisons').update({ active: true }).eq('id', seasonId)
-    if (error) return onMessage({ kind: 'error', text: error.message })
-    onMessage({ kind: 'success', text: 'La saison active a été mise à jour.' })
-    await onChanged()
+    await run(async () => {
+      const { error } = await supabase!.from('saisons').update({ active: true }).eq('id', seasonId)
+      if (error) return onMessage({ kind: 'error', text: error.message })
+      onMessage({ kind: 'success', text: 'La saison active a été mise à jour.' })
+      await onChanged()
+    })
   }
 
   async function remove(season: Season) {
     if (!window.confirm(`Supprimer la saison « ${season.name} » ?`)) return
-    const { error } = await supabase!.from('saisons').delete().eq('id', season.id)
-    if (error) return onMessage({ kind: 'error', text: error.message })
-    onMessage({ kind: 'success', text: 'La saison a été supprimée.' })
-    await onChanged()
+    await run(async () => {
+      const { error } = await supabase!.from('saisons').delete().eq('id', season.id)
+      if (error) return onMessage({ kind: 'error', text: error.message })
+      onMessage({ kind: 'success', text: 'La saison a été supprimée.' })
+      await onChanged()
+    })
   }
 
   return (
@@ -1305,7 +1362,7 @@ function SeasonManager({ seasons, onChanged, onMessage }: {
         <form className="form-grid form-grid--season inline-create" onSubmit={submit}>
           <label><span>Nom</span><input placeholder="Automne 2026" required value={name} onChange={(event) => setName(event.target.value)} /></label>
           <label className="checkbox-label"><input type="checkbox" checked={active} onChange={(event) => setActive(event.target.checked)} /><span>Saison active</span></label>
-          <button className="button button--accent">Ajouter la saison</button>
+          <button className="button button--accent" disabled={pending}>{pending ? 'Ajout…' : 'Ajouter la saison'}</button>
         </form>
       )}
       <div className="admin-list">
@@ -1313,8 +1370,8 @@ function SeasonManager({ seasons, onChanged, onMessage }: {
           <div key={season.id}>
             <span>{season.name}{season.active ? ' · active' : ''}</span>
             <div className="row-actions">
-              {!season.active && <button type="button" onClick={() => void activate(season.id)}>Activer</button>}
-              <ActionButton className="danger-action" icon="delete" label={`Supprimer la saison ${season.name}`} type="button" onClick={() => void remove(season)} />
+              {!season.active && <button type="button" disabled={pending} onClick={() => void activate(season.id)}>Activer</button>}
+              <ActionButton className="danger-action" icon="delete" label={`Supprimer la saison ${season.name}`} type="button" disabled={pending} onClick={() => void remove(season)} />
             </div>
           </div>
         ))}
@@ -1339,6 +1396,7 @@ function ReferenceForms({ zones, relays, colors, grades, onChanged, onMessage }:
   const [colorHex, setColorHex] = useState('#ffde59')
   const [gradeLabel, setGradeLabel] = useState('')
   const [gradeDifficulty, setGradeDifficulty] = useState<Grade['difficulty']>('Facile')
+  const { pending, run } = usePendingAction()
 
   async function insert(table: 'relais' | 'couleurs', values: Record<string, string | number>) {
     const { error } = await supabase!.from(table).insert(values)
@@ -1354,23 +1412,27 @@ function ReferenceForms({ zones, relays, colors, grades, onChanged, onMessage }:
 
   async function addZone(event: FormEvent) {
     event.preventDefault()
-    const { error } = await supabase!.rpc('ajouter_zone', { p_nom: zoneName })
-    if (error) return onMessage({ kind: 'error', text: error.message })
-    setZoneName('')
-    setAdding(null)
-    onMessage({ kind: 'success', text: 'La zone a été ajoutée.' })
-    await onChanged()
+    await run(async () => {
+      const { error } = await supabase!.rpc('ajouter_zone', { p_nom: zoneName })
+      if (error) return onMessage({ kind: 'error', text: error.message })
+      setZoneName('')
+      setAdding(null)
+      onMessage({ kind: 'success', text: 'La zone a été ajoutée.' })
+      await onChanged()
+    })
   }
 
   async function addGrade(event: FormEvent) {
     event.preventDefault()
-    const { error } = await supabase!.rpc('ajouter_cotation', { p_libelle: gradeLabel, p_difficulte: gradeDifficulty })
-    if (error) return onMessage({ kind: 'error', text: error.message })
-    setGradeLabel('')
-    setGradeDifficulty('Facile')
-    setAdding(null)
-    onMessage({ kind: 'success', text: 'La cotation a été ajoutée.' })
-    await onChanged()
+    await run(async () => {
+      const { error } = await supabase!.rpc('ajouter_cotation', { p_libelle: gradeLabel, p_difficulte: gradeDifficulty })
+      if (error) return onMessage({ kind: 'error', text: error.message })
+      setGradeLabel('')
+      setGradeDifficulty('Facile')
+      setAdding(null)
+      onMessage({ kind: 'success', text: 'La cotation a été ajoutée.' })
+      await onChanged()
+    })
   }
 
   return (
@@ -1385,7 +1447,7 @@ function ReferenceForms({ zones, relays, colors, grades, onChanged, onMessage }:
           {adding === 'zone' && (
             <form className="inline-create" onSubmit={addZone}>
               <label><span>Nom de zone</span><input placeholder="Zone verticale" required value={zoneName} onChange={(event) => setZoneName(event.target.value)} /></label>
-              <button className="button button--small">Ajouter</button>
+              <button className="button button--small" disabled={pending}>{pending ? 'Ajout…' : 'Ajouter'}</button>
             </form>
           )}
           {zones.map((zone) => <ZoneReferenceEditor key={zone.id} zone={zone} onChanged={onChanged} onMessage={onMessage} />)}
@@ -1398,11 +1460,13 @@ function ReferenceForms({ zones, relays, colors, grades, onChanged, onMessage }:
           {adding === 'relay' && (
             <form className="inline-create" onSubmit={async (event) => {
               event.preventDefault()
-              if (await insert('relais', { numero: Number(relayNumber), zone_id: relayZoneId })) setRelayNumber('')
+               await run(async () => {
+                 if (await insert('relais', { numero: Number(relayNumber), zone_id: relayZoneId })) setRelayNumber('')
+               })
             }}>
               <label><span>N° de relais</span><input type="number" min="1" required value={relayNumber} onChange={(event) => setRelayNumber(event.target.value)} /></label>
               <label><span>Zone</span><select required value={relayZoneId} onChange={(event) => setRelayZoneId(event.target.value)}><option value="">Choisir</option>{zones.map((zone) => <option key={zone.id} value={zone.id}>{zone.name}</option>)}</select></label>
-              <button className="button button--small">Ajouter</button>
+              <button className="button button--small" disabled={pending}>{pending ? 'Ajout…' : 'Ajouter'}</button>
             </form>
           )}
           {relays.map((relay) => <RelayReferenceEditor key={relay.id} relay={relay} zones={zones} onChanged={onChanged} onMessage={onMessage} />)}
@@ -1415,11 +1479,13 @@ function ReferenceForms({ zones, relays, colors, grades, onChanged, onMessage }:
           {adding === 'color' && (
             <form className="inline-create" onSubmit={async (event) => {
               event.preventDefault()
-              if (await insert('couleurs', { nom: colorName, hex: colorHex })) setColorName('')
+               await run(async () => {
+                 if (await insert('couleurs', { nom: colorName, hex: colorHex })) setColorName('')
+               })
             }}>
               <label><span>Couleur</span><input required value={colorName} onChange={(event) => setColorName(event.target.value)} /></label>
               <label><span>Teinte</span><input type="color" value={colorHex} onChange={(event) => setColorHex(event.target.value)} /></label>
-              <button className="button button--small">Ajouter</button>
+              <button className="button button--small" disabled={pending}>{pending ? 'Ajout…' : 'Ajouter'}</button>
             </form>
           )}
           {colors.map((color) => <ColorReferenceEditor key={color.id} color={color} onChanged={onChanged} onMessage={onMessage} />)}
@@ -1433,7 +1499,7 @@ function ReferenceForms({ zones, relays, colors, grades, onChanged, onMessage }:
             <form className="inline-create" onSubmit={addGrade}>
               <label><span>Cotation</span><input placeholder="7a+" required value={gradeLabel} onChange={(event) => setGradeLabel(event.target.value)} /></label>
               <label><span>Difficulté</span><select value={gradeDifficulty} onChange={(event) => setGradeDifficulty(event.target.value as Grade['difficulty'])}>{difficulties.map((difficulty) => <option key={difficulty} value={difficulty}>{difficulty}</option>)}</select></label>
-              <button className="button button--small">Ajouter</button>
+              <button className="button button--small" disabled={pending}>{pending ? 'Ajout…' : 'Ajouter'}</button>
             </form>
           )}
           {grades.map((grade) => <GradeReferenceEditor key={grade.id} grade={grade} onChanged={onChanged} onMessage={onMessage} />)}
@@ -1451,21 +1517,31 @@ type ReferenceEditorProps = {
 function ZoneReferenceEditor({ zone, onChanged, onMessage }: ReferenceEditorProps & { zone: Zone }) {
   const [name, setName] = useState(zone.name)
   const [order, setOrder] = useState(String(zone.order))
+  const { pending, run } = usePendingAction()
+
+  useEffect(() => {
+    setName(zone.name)
+    setOrder(String(zone.order))
+  }, [zone.name, zone.order])
 
   async function save(event: FormEvent) {
     event.preventDefault()
-    const { error } = await supabase!.rpc('modifier_zone', { p_zone_id: zone.id, p_nom: name, p_nouvel_ordre: Number(order) })
-    if (error) return onMessage({ kind: 'error', text: error.message })
-    onMessage({ kind: 'success', text: 'La zone et son ordre ont été modifiés.' })
-    await onChanged()
+    await run(async () => {
+      const { error } = await supabase!.rpc('modifier_zone', { p_zone_id: zone.id, p_nom: name, p_nouvel_ordre: Number(order) })
+      if (error) return onMessage({ kind: 'error', text: error.message })
+      onMessage({ kind: 'success', text: 'La zone et son ordre ont été modifiés.' })
+      await onChanged()
+    })
   }
 
   async function remove() {
     if (!window.confirm(`Supprimer la zone « ${zone.name} » ?`)) return
-    const { error } = await supabase!.rpc('supprimer_zone', { p_zone_id: zone.id })
-    if (error) return onMessage({ kind: 'error', text: error.message })
-    onMessage({ kind: 'success', text: 'La zone a été supprimée.' })
-    await onChanged()
+    await run(async () => {
+      const { error } = await supabase!.rpc('supprimer_zone', { p_zone_id: zone.id })
+      if (error) return onMessage({ kind: 'error', text: error.message })
+      onMessage({ kind: 'success', text: 'La zone a été supprimée.' })
+      await onChanged()
+    })
   }
 
   return (
@@ -1473,8 +1549,8 @@ function ZoneReferenceEditor({ zone, onChanged, onMessage }: ReferenceEditorProp
       <label><span>Nom</span><input required value={name} onChange={(event) => setName(event.target.value)} /></label>
       <label><span>Ordre</span><input type="number" min="1" required value={order} onChange={(event) => setOrder(event.target.value)} /></label>
       <div className="row-actions">
-        <ActionButton icon="save" label="Enregistrer la zone" type="submit" />
-        <ActionButton className="danger-action" icon="delete" label={`Supprimer la zone ${zone.name}`} type="button" onClick={() => void remove()} />
+        <ActionButton icon="save" label="Enregistrer la zone" type="submit" disabled={pending} />
+        <ActionButton className="danger-action" icon="delete" label={`Supprimer la zone ${zone.name}`} type="button" disabled={pending} onClick={() => void remove()} />
       </div>
     </form>
   )
@@ -1483,21 +1559,26 @@ function ZoneReferenceEditor({ zone, onChanged, onMessage }: ReferenceEditorProp
 function RelayReferenceEditor({ relay, zones, onChanged, onMessage }: ReferenceEditorProps & { relay: Relay; zones: Zone[] }) {
   const [number, setNumber] = useState(String(relay.number))
   const [zoneId, setZoneId] = useState(relay.zoneId)
+  const { pending, run } = usePendingAction()
 
   async function save(event: FormEvent) {
     event.preventDefault()
-    const { error } = await supabase!.from('relais').update({ numero: Number(number), zone_id: zoneId }).eq('id', relay.id)
-    if (error) return onMessage({ kind: 'error', text: error.message })
-    onMessage({ kind: 'success', text: 'Le relais a été modifié.' })
-    await onChanged()
+    await run(async () => {
+      const { error } = await supabase!.from('relais').update({ numero: Number(number), zone_id: zoneId }).eq('id', relay.id)
+      if (error) return onMessage({ kind: 'error', text: error.message })
+      onMessage({ kind: 'success', text: 'Le relais a été modifié.' })
+      await onChanged()
+    })
   }
 
   async function remove() {
     if (!window.confirm(`Supprimer le relais ${relay.number} ?`)) return
-    const { error } = await supabase!.from('relais').delete().eq('id', relay.id)
-    if (error) return onMessage({ kind: 'error', text: error.message })
-    onMessage({ kind: 'success', text: 'Le relais a été supprimé.' })
-    await onChanged()
+    await run(async () => {
+      const { error } = await supabase!.from('relais').delete().eq('id', relay.id)
+      if (error) return onMessage({ kind: 'error', text: error.message })
+      onMessage({ kind: 'success', text: 'Le relais a été supprimé.' })
+      await onChanged()
+    })
   }
 
   return (
@@ -1505,8 +1586,8 @@ function RelayReferenceEditor({ relay, zones, onChanged, onMessage }: ReferenceE
       <label><span>N°</span><input type="number" min="1" required value={number} onChange={(event) => setNumber(event.target.value)} /></label>
       <label><span>Zone</span><select required value={zoneId} onChange={(event) => setZoneId(event.target.value)}>{zones.map((zone) => <option key={zone.id} value={zone.id}>{zone.name}</option>)}</select></label>
       <div className="row-actions">
-        <ActionButton icon="save" label="Enregistrer le relais" type="submit" />
-        <ActionButton className="danger-action" icon="delete" label={`Supprimer le relais ${relay.number}`} type="button" onClick={() => void remove()} />
+        <ActionButton icon="save" label="Enregistrer le relais" type="submit" disabled={pending} />
+        <ActionButton className="danger-action" icon="delete" label={`Supprimer le relais ${relay.number}`} type="button" disabled={pending} onClick={() => void remove()} />
       </div>
     </form>
   )
@@ -1515,21 +1596,26 @@ function RelayReferenceEditor({ relay, zones, onChanged, onMessage }: ReferenceE
 function ColorReferenceEditor({ color, onChanged, onMessage }: ReferenceEditorProps & { color: Color }) {
   const [name, setName] = useState(color.name)
   const [hex, setHex] = useState(color.hex)
+  const { pending, run } = usePendingAction()
 
   async function save(event: FormEvent) {
     event.preventDefault()
-    const { error } = await supabase!.from('couleurs').update({ nom: name, hex }).eq('id', color.id)
-    if (error) return onMessage({ kind: 'error', text: error.message })
-    onMessage({ kind: 'success', text: 'La couleur a été modifiée.' })
-    await onChanged()
+    await run(async () => {
+      const { error } = await supabase!.from('couleurs').update({ nom: name, hex }).eq('id', color.id)
+      if (error) return onMessage({ kind: 'error', text: error.message })
+      onMessage({ kind: 'success', text: 'La couleur a été modifiée.' })
+      await onChanged()
+    })
   }
 
   async function remove() {
     if (!window.confirm(`Supprimer la couleur « ${color.name} » ?`)) return
-    const { error } = await supabase!.from('couleurs').delete().eq('id', color.id)
-    if (error) return onMessage({ kind: 'error', text: error.message })
-    onMessage({ kind: 'success', text: 'La couleur a été supprimée.' })
-    await onChanged()
+    await run(async () => {
+      const { error } = await supabase!.from('couleurs').delete().eq('id', color.id)
+      if (error) return onMessage({ kind: 'error', text: error.message })
+      onMessage({ kind: 'success', text: 'La couleur a été supprimée.' })
+      await onChanged()
+    })
   }
 
   return (
@@ -1537,8 +1623,8 @@ function ColorReferenceEditor({ color, onChanged, onMessage }: ReferenceEditorPr
       <label><span>Nom</span><input required value={name} onChange={(event) => setName(event.target.value)} /></label>
       <label><span>Teinte</span><input type="color" value={hex} onChange={(event) => setHex(event.target.value)} /></label>
       <div className="row-actions">
-        <ActionButton icon="save" label="Enregistrer la couleur" type="submit" />
-        <ActionButton className="danger-action" icon="delete" label={`Supprimer la couleur ${color.name}`} type="button" onClick={() => void remove()} />
+        <ActionButton icon="save" label="Enregistrer la couleur" type="submit" disabled={pending} />
+        <ActionButton className="danger-action" icon="delete" label={`Supprimer la couleur ${color.name}`} type="button" disabled={pending} onClick={() => void remove()} />
       </div>
     </form>
   )
@@ -1548,21 +1634,32 @@ function GradeReferenceEditor({ grade, onChanged, onMessage }: ReferenceEditorPr
   const [label, setLabel] = useState(grade.label)
   const [rank, setRank] = useState(String(grade.rank))
   const [difficulty, setDifficulty] = useState<Grade['difficulty']>(grade.difficulty)
+  const { pending, run } = usePendingAction()
+
+  useEffect(() => {
+    setLabel(grade.label)
+    setRank(String(grade.rank))
+    setDifficulty(grade.difficulty)
+  }, [grade.difficulty, grade.label, grade.rank])
 
   async function save(event: FormEvent) {
     event.preventDefault()
-    const { error } = await supabase!.rpc('modifier_cotation', { p_cotation_id: grade.id, p_libelle: label, p_nouveau_rang: Number(rank), p_difficulte: difficulty })
-    if (error) return onMessage({ kind: 'error', text: error.message })
-    onMessage({ kind: 'success', text: 'La cotation, sa difficulté et son ordre ont été modifiés.' })
-    await onChanged()
+    await run(async () => {
+      const { error } = await supabase!.rpc('modifier_cotation', { p_cotation_id: grade.id, p_libelle: label, p_nouveau_rang: Number(rank), p_difficulte: difficulty })
+      if (error) return onMessage({ kind: 'error', text: error.message })
+      onMessage({ kind: 'success', text: 'La cotation, sa difficulté et son ordre ont été modifiés.' })
+      await onChanged()
+    })
   }
 
   async function remove() {
     if (!window.confirm(`Supprimer la cotation « ${grade.label} » ?`)) return
-    const { error } = await supabase!.rpc('supprimer_cotation', { p_cotation_id: grade.id })
-    if (error) return onMessage({ kind: 'error', text: error.message })
-    onMessage({ kind: 'success', text: 'La cotation a été supprimée.' })
-    await onChanged()
+    await run(async () => {
+      const { error } = await supabase!.rpc('supprimer_cotation', { p_cotation_id: grade.id })
+      if (error) return onMessage({ kind: 'error', text: error.message })
+      onMessage({ kind: 'success', text: 'La cotation a été supprimée.' })
+      await onChanged()
+    })
   }
 
   return (
@@ -1571,8 +1668,8 @@ function GradeReferenceEditor({ grade, onChanged, onMessage }: ReferenceEditorPr
       <label><span>Ordre</span><input type="number" min="1" required value={rank} onChange={(event) => setRank(event.target.value)} /></label>
       <label><span>Difficulté</span><select value={difficulty} onChange={(event) => setDifficulty(event.target.value as Grade['difficulty'])}>{difficulties.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
       <div className="row-actions">
-        <ActionButton icon="save" label="Enregistrer la cotation" type="submit" />
-        <ActionButton className="danger-action" icon="delete" label={`Supprimer la cotation ${grade.label}`} type="button" onClick={() => void remove()} />
+        <ActionButton icon="save" label="Enregistrer la cotation" type="submit" disabled={pending} />
+        <ActionButton className="danger-action" icon="delete" label={`Supprimer la cotation ${grade.label}`} type="button" disabled={pending} onClick={() => void remove()} />
       </div>
     </form>
   )

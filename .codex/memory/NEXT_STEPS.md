@@ -9,9 +9,9 @@
 ## Short Term
 
 - [ ] Enable hosted email sign-up and install the neutral OTP template without pushing local callback URLs.
-- [ ] Commit the validated route-details feature and the existing local phase-2 navigation/profile work.
-- [ ] Commit the validated following feature with its migration, pgTAP matrix, frontend and documentation before publishing.
-- [ ] Configure GitHub Pages secrets, push `main`, and verify the deployment workflow and public site separately.
+- [ ] Rerun both database matrices after the Potes fixture correction and verify every assertion in CI.
+- [ ] Apply and verify every pending Supabase migration before publishing a frontend that depends on it.
+- [ ] Rerun the GitHub Pages workflow and verify that its deployed SHA matches the validated `main` commit.
 
 ## Backlog
 

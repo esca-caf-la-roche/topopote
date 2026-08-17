@@ -128,6 +128,20 @@ describe('filterRoutes', () => {
     ])
   })
 
+  it('sépare un groupe 6a / 6a+ lorsque les difficultés administratives diffèrent', () => {
+    const moderateGrade = { id: '6a', label: '6a', rank: 6, points: 400, difficulty: 'Modéré' as const }
+    const difficultGrade = { id: '6a-plus', label: '6a+', rank: 7, points: 450, difficulty: 'Difficile' as const }
+    const gradeRoutes = [
+      { ...routes[0], id: 'moderate-6a', gradeId: moderateGrade.id, grade: moderateGrade },
+      { ...routes[1], id: 'difficult-6a-plus', gradeId: difficultGrade.id, grade: difficultGrade },
+    ]
+
+    expect(gradeDistribution(gradeRoutes, [moderateGrade, difficultGrade])).toMatchObject([
+      { label: '6a / 6a+', difficulty: 'Modéré', count: 1, percentage: 50 },
+      { label: '6a / 6a+', difficulty: 'Difficile', count: 1, percentage: 50 },
+    ])
+  })
+
   it('includes personal completions in each grade group', () => {
     expect(gradeDistribution(routes.slice(0, 2), [routes[0].grade, routes[1].grade], new Set(['hard']))).toMatchObject([
       { label: '5c', count: 1, completedCount: 0 },

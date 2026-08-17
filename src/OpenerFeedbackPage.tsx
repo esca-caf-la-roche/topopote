@@ -135,7 +135,7 @@ export default function OpenerFeedbackPage({
                     <label className="opener-search"><span>Rechercher</span><input type="search" value={filters.query} placeholder="Zone, couleur, commentaire…" onChange={(event) => updateFilter('query', event.target.value)} /></label>
                     <label className="checkbox-label"><input type="checkbox" checked={filters.commentsOnly} onChange={(event) => updateFilter('commentsOnly', event.target.checked)} /><span>Avec commentaires seulement</span></label>
                   </div>
-                  <p className="privacy-note">Cette page réservée aux ouvreurs et administrateurs prend en compte tous les enchaînements et commentaires enregistrés.</p>
+                  <p className="privacy-note">Cette page réservée aux ouvreurs et administrateurs prend en compte tous les enchaînements et commentaires enregistrés, indépendamment du partage communautaire.</p>
                 </section>
 
                 <section aria-labelledby="opener-results-title">

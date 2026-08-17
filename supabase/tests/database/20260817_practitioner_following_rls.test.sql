@@ -76,7 +76,7 @@ insert into public.profils (user_id, id_public, pseudo, partage_activite) values
 insert into public.zones (id, nom, ordre)
 values ('10000000-0000-0000-0000-00000000d101', '__test_suivi__', 31990);
 insert into public.saisons (id, nom, active)
-values ('20000000-0000-0000-0000-00000000d101', '__test_suivi__', false);
+values ('20000000-0000-0000-0000-00000000d101', '__test_suivi__', true);
 insert into public.relais (id, numero, zone_id)
 values (
   '30000000-0000-0000-0000-00000000d101',

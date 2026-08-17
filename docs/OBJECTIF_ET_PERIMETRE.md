@@ -6,7 +6,7 @@
 
 ## Objectif du projet
 
-Mettre à disposition un topo numérique simple du mur d’escalade de Saint-Pierre-en-Faucigny. Toute personne peut consulter les voies et les filtrer par relais, couleur, cotation ou difficulté. Les données sont enregistrées uniquement par les administrateurs autorisés.
+Mettre à disposition un topo numérique simple du mur d’escalade de Saint-Pierre-en-Faucigny. Toute personne peut consulter les voies et les filtrer par relais, couleur, cotation ou difficulté. Les administrateurs autorisés gèrent le topo et ses référentiels ; les pratiquants authentifiés écrivent uniquement leur propre profil, leur carnet et leurs relations de suivi, sous contrôle RLS.
 
 ## MVP — première version
 
@@ -49,6 +49,7 @@ Mettre à disposition un topo numérique simple du mur d’escalade de Saint-Pie
 - tableau de bord avec score, rang, volume, meilleure cotation et répartition des styles ;
 - classement public par saison fondé sur les dix meilleurs enchaînements ;
 - vue administrateur du nombre de profils et de leur volume d’activité.
+- vue ouvreur et administrateur de tous les retours enregistrés sur les voies, indépendamment du consentement de partage communautaire.
 
 ### Règle de score
 

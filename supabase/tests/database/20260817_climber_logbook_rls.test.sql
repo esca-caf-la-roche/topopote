@@ -2,7 +2,21 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(36);
+select plan(41);
+
+create function public.__pgtap_default_privileges()
+returns integer
+language sql
+as $$select 1$$;
+
+select ok(
+  not has_function_privilege('anon', 'public.__pgtap_default_privileges()', 'execute'),
+  'une future fonction publique n est pas exécutable par anon par défaut'
+);
+select ok(
+  not has_function_privilege('authenticated', 'public.__pgtap_default_privileges()', 'execute'),
+  'une future fonction publique doit être accordée explicitement à authenticated'
+);
 
 select ok(
   not has_table_privilege('anon', 'public.profils', 'select'),
@@ -53,12 +67,25 @@ select results_eq(
 
 insert into public.zones (id, nom, ordre)
 values ('10000000-0000-0000-0000-000000000001', '__test_rls__', 32000);
-insert into public.saisons (id, nom, active)
-values ('20000000-0000-0000-0000-000000000002', '__test_rls__', true);
 insert into public.relais (id, numero, zone_id)
 values ('30000000-0000-0000-0000-000000000003', 32000, '10000000-0000-0000-0000-000000000001');
 insert into public.couleurs (id, nom, hex)
 values ('40000000-0000-0000-0000-000000000004', '__test_rls__', '#123456');
+
+insert into public.saisons (id, nom, active)
+values ('20000000-0000-0000-0000-000000000001', '__test_rls_historique__', true);
+insert into public.voies (id, saison_id, relais_id, couleur_id, cotation_id)
+select
+  '50000000-0000-0000-0000-000000000004',
+  '20000000-0000-0000-0000-000000000001',
+  '30000000-0000-0000-0000-000000000003',
+  '40000000-0000-0000-0000-000000000004',
+  cotation.id
+from public.cotations cotation
+where cotation.libelle = '6a';
+
+insert into public.saisons (id, nom, active)
+values ('20000000-0000-0000-0000-000000000002', '__test_rls__', true);
 insert into public.voies (id, saison_id, relais_id, couleur_id, cotation_id)
 select
   '50000000-0000-0000-0000-000000000005',
@@ -69,7 +96,54 @@ select
 from public.cotations cotation
 where cotation.libelle = '6a';
 
+insert into public.voies (id, saison_id, relais_id, couleur_id, cotation_id)
+select
+  '50000000-0000-0000-0000-000000000006',
+  '20000000-0000-0000-0000-000000000001',
+  '30000000-0000-0000-0000-000000000003',
+  '40000000-0000-0000-0000-000000000004',
+  cotation.id
+from public.cotations cotation
+where cotation.libelle = '6a';
+
+select is(
+  (select saison_id from public.voies where id = '50000000-0000-0000-0000-000000000006'),
+  '20000000-0000-0000-0000-000000000002'::uuid,
+  'une nouvelle voie est toujours rattachée à la saison active'
+);
+
+set local role anon;
+select results_eq(
+  $$select id from public.voies
+    where id in (
+      '50000000-0000-0000-0000-000000000004',
+      '50000000-0000-0000-0000-000000000005',
+      '50000000-0000-0000-0000-000000000006'
+    )
+    order by id$$,
+  $$values
+    ('50000000-0000-0000-0000-000000000005'::uuid),
+    ('50000000-0000-0000-0000-000000000006'::uuid)$$,
+  'anon lit la voie active mais pas la voie historique brute'
+);
+
+reset role;
 set local role authenticated;
+select results_eq(
+  $$select id from public.voies
+    where id in (
+      '50000000-0000-0000-0000-000000000004',
+      '50000000-0000-0000-0000-000000000005',
+      '50000000-0000-0000-0000-000000000006'
+    )
+    order by id$$,
+  $$values
+    ('50000000-0000-0000-0000-000000000004'::uuid),
+    ('50000000-0000-0000-0000-000000000005'::uuid),
+    ('50000000-0000-0000-0000-000000000006'::uuid)$$,
+  'authenticated conserve les voies historiques nécessaires aux carnets'
+);
+
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000a001', true);
 
 select lives_ok(
