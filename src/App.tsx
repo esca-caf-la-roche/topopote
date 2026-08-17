@@ -6,12 +6,13 @@ import { isSupabaseConfigured, supabase } from './lib/supabase'
 import ClimberArea from './ClimberArea'
 import PrimaryNav from './PrimaryNav'
 import RouteAscentsModal from './RouteAscentsModal'
-import { routeAscentAction, routeAscentBackgrounds } from './lib/routeAscents'
+import { routeAscentBackgrounds } from './lib/routeAscents'
 import { styleLabels } from './lib/scoring'
 import type { AscentStyle, Color, Grade, Relay, Route, RouteFilters, RouteSort, Season, Zone } from './types'
 
 type Message = { kind: 'error' | 'success'; text: string } | null
 type DistributionView = 'grade' | 'zone'
+type RouteSelection = { route: Route; mode: 'details' | 'add' }
 
 const difficulties: Grade['difficulty'][] = ['Facile', 'Modéré', 'Difficile', 'Extrême']
 
@@ -40,7 +41,7 @@ export default function App() {
   const [routeDraft, setRouteDraft] = useState<{ relayId?: string; gradeId?: string } | null>(null)
   const [showDistributionDetails, setShowDistributionDetails] = useState(false)
   const [distributionView, setDistributionView] = useState<DistributionView>('grade')
-  const [selectedRoute, setSelectedRoute] = useState<Route | null>(null)
+  const [selectedRoute, setSelectedRoute] = useState<RouteSelection | null>(null)
   const [ownAscents, setOwnAscents] = useState<Record<string, AscentStyle>>({})
   const [hasClimberProfile, setHasClimberProfile] = useState(false)
   const [sharesActivity, setSharesActivity] = useState(false)
@@ -346,8 +347,9 @@ export default function App() {
 
       {selectedRoute && user && (
         <RouteAscentsModal
-          route={selectedRoute}
-          ownStyle={ownAscents[selectedRoute.id]}
+          route={selectedRoute.route}
+          mode={selectedRoute.mode}
+          ownStyle={ownAscents[selectedRoute.route.id]}
           hasProfile={hasClimberProfile}
           sharesActivity={sharesActivity}
           onClose={closeSelectedRoute}
@@ -631,7 +633,8 @@ export default function App() {
                                 route={route}
                                 authenticated={Boolean(user) && !authLoading && !topoActivityLoading}
                                 ownStyle={ownAscents[route.id]}
-                                onOpen={() => setSelectedRoute(route)}
+                                onOpen={() => setSelectedRoute({ route, mode: 'details' })}
+                                onAdd={() => setSelectedRoute({ route, mode: 'add' })}
                               />
                             ))}
                           </div>
@@ -689,11 +692,12 @@ function RouteModal({ onClose, ...routeFormProps }: {
   )
 }
 
-function RouteCard({ route, authenticated, ownStyle, onOpen }: {
+function RouteCard({ route, authenticated, ownStyle, onOpen, onAdd }: {
   route: Route
   authenticated?: boolean
   ownStyle?: AscentStyle
   onOpen?: () => void
+  onAdd?: () => void
 }) {
   const content = <>
     <div
@@ -708,16 +712,26 @@ function RouteCard({ route, authenticated, ownStyle, onOpen }: {
       {route.isHalfRoute && <span className="half-route-badge">1/2 voie</span>}
     </div>
     <div className="grade" aria-label={`Cotation ${route.grade.label}`}>{route.grade.label}</div>
-    {authenticated && <span className={`route-card__ascent-action ${ownStyle ? 'route-card__ascent-action--done' : ''}`}>
+    {authenticated && ownStyle && <span className="route-card__ascent-action route-card__ascent-action--done">
       {ownStyle && <span className={`style-dot style-dot--${ownStyle}`} />}
-      {ownStyle ? styleLabels[ownStyle] : <span aria-hidden="true">+ 📓</span>}
+      {styleLabels[ownStyle]}
     </span>}
   </>
 
   return (
     <article className="route-card" style={{ backgroundColor: ownStyle ? routeAscentBackgrounds[ownStyle] : undefined }}>
-      {authenticated && onOpen ? <button className="route-card__open" type="button" onClick={onOpen} aria-label={`${routeAscentAction(ownStyle)} · relais ${route.relay.number}, ${route.color.name}, ${route.grade.label}`}>{content}</button>
+      {authenticated && onOpen ? <button className={`route-card__open ${!ownStyle && onAdd ? 'route-card__open--with-add' : ''}`} type="button" onClick={onOpen} aria-label={`Voir les enchaînements · relais ${route.relay.number}, ${route.color.name}, ${route.grade.label}`}>{content}</button>
         : <div className="route-card__content">{content}</div>}
+      {authenticated && !ownStyle && onAdd && (
+        <button
+          className="route-card__ascent-action route-card__ascent-action--add"
+          type="button"
+          onClick={onAdd}
+          aria-label={`Ajouter mon enchaînement · relais ${route.relay.number}, ${route.color.name}, ${route.grade.label}`}
+        >
+          <span aria-hidden="true">+ 📓</span>
+        </button>
+      )}
     </article>
   )
 }

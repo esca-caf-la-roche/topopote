@@ -24,6 +24,7 @@ function localDate() {
 
 export default function RouteAscentsModal({
   route,
+  mode,
   ownStyle,
   hasProfile,
   sharesActivity,
@@ -32,6 +33,7 @@ export default function RouteAscentsModal({
   onFeedback,
 }: {
   route: Route
+  mode: 'details' | 'add'
   ownStyle?: AscentStyle
   hasProfile: boolean
   sharesActivity: boolean
@@ -69,6 +71,7 @@ export default function RouteAscentsModal({
 
   useEffect(() => {
     const returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const returnFocusFallback = returnFocus?.closest('.route-card')?.querySelector<HTMLElement>('.route-card__open') ?? null
     const previousOverflow = document.body.style.overflow
     const focusableSelector = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -99,7 +102,8 @@ export default function RouteAscentsModal({
     return () => {
       document.body.style.overflow = previousOverflow
       window.removeEventListener('keydown', handleKeyDown)
-      returnFocus?.focus()
+      const focusTarget = returnFocus?.isConnected ? returnFocus : returnFocusFallback
+      focusTarget?.focus()
     }
   }, [onClose])
 
@@ -118,7 +122,7 @@ export default function RouteAscentsModal({
           </div>
         </header>
 
-        {!hasProfile ? (
+        {mode === 'add' && (!hasProfile ? (
           <section className="route-ascent-modal__profile">
             <h3>Crée d’abord ton profil pratiquant</h3>
             <p>Ton pseudo permet d’identifier tes enchaînements sans afficher ton adresse email.</p>
@@ -140,7 +144,7 @@ export default function RouteAscentsModal({
             }}
             onFeedback={onFeedback}
           />
-        )}
+        ))}
 
         <section className="route-reviews" aria-labelledby="route-reviews-title">
           <div className="section-heading"><h3 id="route-reviews-title">Qui l’a enchaînée ?</h3><span className="count">{reviews.length}</span></div>
