@@ -18,20 +18,43 @@ select ok(
   'une fonction créée par postgres doit être accordée explicitement à authenticated'
 );
 
-set local role supabase_admin;
-create function public.__pgtap_supabase_admin_default_privileges()
-returns integer
-language sql
-as $$select 1$$;
-reset role;
-
 select ok(
-  not has_function_privilege('anon', 'public.__pgtap_supabase_admin_default_privileges()', 'execute'),
-  'une fonction créée par supabase_admin n est pas exécutable par anon par défaut'
+  exists (
+    select 1
+    from pg_default_acl default_acl
+    where default_acl.defaclrole = 'supabase_admin'::regrole
+      and default_acl.defaclnamespace = 'public'::regnamespace
+      and default_acl.defaclobjtype = 'f'
+  ) and not exists (
+    select 1
+    from pg_default_acl default_acl
+    cross join lateral aclexplode(default_acl.defaclacl) acl_privilege
+    where default_acl.defaclrole = 'supabase_admin'::regrole
+      and default_acl.defaclnamespace = 'public'::regnamespace
+      and default_acl.defaclobjtype = 'f'
+      and acl_privilege.privilege_type = 'EXECUTE'
+      and acl_privilege.grantee in (0, 'anon'::regrole)
+  ),
+  'les fonctions créées par supabase_admin ne sont pas exécutables par anon par défaut'
 );
 select ok(
-  not has_function_privilege('authenticated', 'public.__pgtap_supabase_admin_default_privileges()', 'execute'),
-  'une fonction créée par supabase_admin doit être accordée explicitement à authenticated'
+  exists (
+    select 1
+    from pg_default_acl default_acl
+    where default_acl.defaclrole = 'supabase_admin'::regrole
+      and default_acl.defaclnamespace = 'public'::regnamespace
+      and default_acl.defaclobjtype = 'f'
+  ) and not exists (
+    select 1
+    from pg_default_acl default_acl
+    cross join lateral aclexplode(default_acl.defaclacl) acl_privilege
+    where default_acl.defaclrole = 'supabase_admin'::regrole
+      and default_acl.defaclnamespace = 'public'::regnamespace
+      and default_acl.defaclobjtype = 'f'
+      and acl_privilege.privilege_type = 'EXECUTE'
+      and acl_privilege.grantee in (0, 'authenticated'::regrole)
+  ),
+  'les fonctions créées par supabase_admin doivent être accordées explicitement à authenticated'
 );
 
 select ok(
