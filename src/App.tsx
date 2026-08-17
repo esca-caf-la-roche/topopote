@@ -1016,8 +1016,8 @@ function AdminPage({
               <button type="button" onClick={() => void onSignOut()}>Se déconnecter</button>
             </div>
             <SeasonManager seasons={seasons} onChanged={onChanged} onMessage={onMessage} />
-            <ReferenceForms zones={zones} relays={relays} colors={colors} grades={grades} onChanged={onChanged} onMessage={onMessage} />
             <PractitionerManager onMessage={onMessage} />
+            <ReferenceForms zones={zones} relays={relays} colors={colors} grades={grades} onChanged={onChanged} onMessage={onMessage} />
           </div>
         )}
         </section>
@@ -1079,11 +1079,12 @@ function PractitionerManager({ onMessage }: { onMessage: (message: Message) => v
     <section className="practitioner-manager" aria-labelledby="practitioner-manager-title">
       <div className="manager-heading">
         <div>
-          <p className="section-kicker">Comptes et activité</p>
-          <h3 id="practitioner-manager-title">Pratiquants</h3>
+          <p className="section-kicker">Gestion des accès</p>
+          <h3 id="practitioner-manager-title">Rôle ouvreur</h3>
         </div>
         <span className="count">{profiles.length}</span>
       </div>
+      <p>Attribue ou retire le rôle d’ouvreur aux pratiquants inscrits.</p>
       {loading ? <p>Chargement des pratiquants…</p> : profiles.length === 0 ? <p className="empty-state">Aucun profil pratiquant.</p> : (
         <div className="practitioner-list">
           {profiles.map((profile) => (
