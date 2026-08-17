@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(35);
+select plan(36);
 
 select ok(
   not has_table_privilege('anon', 'public.profils', 'select'),
@@ -235,8 +235,18 @@ select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000a001
 select results_eq(
   $$select nombre_enchainements, nombre_commentaires from public.retours_ouvreurs()
     where voie_id = '50000000-0000-0000-0000-000000000005'$$,
-  $$values (0::bigint, 0::bigint)$$,
-  'le retrait du consentement retire aussi les agrégats et commentaires de la page ouvreur'
+  $$values (1::bigint, 1::bigint)$$,
+  'la page ouvreur ignore le consentement de partage communautaire'
+);
+
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000c003', true);
+select results_eq(
+  $$select nombre_enchainements, nombre_commentaires from public.retours_ouvreurs()
+    where voie_id = '50000000-0000-0000-0000-000000000005'$$,
+  $$values (1::bigint, 1::bigint)$$,
+  'un administrateur voit aussi tous les retours sur la page ouvreur'
 );
 
 reset role;

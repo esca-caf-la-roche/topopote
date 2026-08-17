@@ -37,8 +37,8 @@ describe('filterAndSortRouteFeedback', () => {
     expect(result.map((entry) => entry.route.id)).toEqual(['popular'])
   })
 
-  it('place les voies sans note après les voies notées', () => {
+  it('masque les voies qui n’ont aucun enchaînement partagé', () => {
     expect(filterAndSortRouteFeedback(entries, emptyOpenerFeedbackFilters, 'rating').map((entry) => entry.route.id))
-      .toEqual(['popular', 'quiet'])
+      .toEqual(['popular'])
   })
 })

@@ -47,6 +47,7 @@ export function filterAndSortRouteFeedback(
   const query = normalize(filters.query.trim())
   const filtered = feedback.filter((entry) => {
     const route = entry.route
+    if (entry.ascentCount === 0) return false
     if (filters.seasonId && route.seasonId !== filters.seasonId) return false
     if (filters.zoneId && route.relay.zoneId !== filters.zoneId) return false
     if (filters.relayId && route.relayId !== filters.relayId) return false
