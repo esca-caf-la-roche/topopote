@@ -156,7 +156,7 @@ function AuthPanel({ onFeedback }: { onFeedback: (feedback: Feedback) => void })
     setBusy(false)
     if (error) return onFeedback({ kind: 'error', text: error.message })
     if (!sent) { savePendingOtpEmail(email); setSent(true); onFeedback({ kind: 'success', text: 'Code envoyé. Consulte ta boîte mail.' }) }
-    else { clearPendingOtpEmail(); onFeedback({ kind: 'success', text: 'Bienvenue dans Topopote !' }) }
+    else { clearPendingOtpEmail(); window.location.hash = ''; onFeedback({ kind: 'success', text: 'Bienvenue dans Topopote !' }) }
   }
   function changeEmail() {
     clearPendingOtpEmail(); setSent(false); setOtp(''); onFeedback(null)

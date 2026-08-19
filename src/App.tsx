@@ -1017,6 +1017,7 @@ function AdminPage({
     const { error } = await supabase.auth.verifyOtp({ email, token: otp, type: 'email' })
     setBusy(false)
     if (error) return onMessage({ kind: 'error', text: error.message })
+    window.location.hash = ''
     onMessage({ kind: 'success', text: 'Connexion réussie.' })
   }
 
