@@ -18,6 +18,11 @@ describe('navigationItems', () => {
     expect(navigationItems(true, false, false, true)).toContainEqual({ page: 'potes', label: 'Potes' })
   })
 
+  it('affiche Entraînement seulement avec le booléen privé Supabase', () => {
+    expect(navigationItems(true, false, false, false, true)).toContainEqual({ page: 'entrainement', label: 'Entraînement' })
+    expect(navigationItems(true, false, false, false, false)).not.toContainEqual({ page: 'entrainement', label: 'Entraînement' })
+  })
+
   it('ajoute les retours des voies au rôle ouvreur', () => {
     expect(navigationItems(true, false, true)).toEqual([
       { page: '', label: 'Topo' },

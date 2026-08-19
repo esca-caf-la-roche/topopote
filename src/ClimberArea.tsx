@@ -99,13 +99,13 @@ export default function ClimberArea({ page, user, isAdmin, isOpener, authLoading
     if (!supabase || !user) { setLoading(false); return }
     setLoading(true)
     const [profileResult, ascentsResult] = await Promise.all([
-      supabase.from('profils').select('user_id, pseudo, classement_public, partage_activite').eq('user_id', user.id).maybeSingle(),
+      supabase.from('profils').select('user_id, pseudo, classement_public, partage_activite, acces_entrainement').eq('user_id', user.id).maybeSingle(),
       supabase.from('enchainements').select('id, user_id, voie_id, saison_id, date_enchainement, style, essais, ressenti_cotation, note, recommande, commentaire').eq('user_id', user.id).order('date_enchainement', { ascending: false }),
     ])
     if (requestId !== personalDataRequest.current) return
     const error = profileResult.error || ascentsResult.error
     if (error) { setFeedback({ kind: 'error', text: error.message }); setLoading(false); return }
-    setProfile(profileResult.data ? { userId: profileResult.data.user_id, nickname: profileResult.data.pseudo, publicRanking: profileResult.data.classement_public, shareActivity: profileResult.data.partage_activite } : null)
+    setProfile(profileResult.data ? { userId: profileResult.data.user_id, nickname: profileResult.data.pseudo, publicRanking: profileResult.data.classement_public, shareActivity: profileResult.data.partage_activite, trainingAccess: profileResult.data.acces_entrainement } : null)
     setAscents((ascentsResult.data ?? []).flatMap((row) => {
       const route = routes.find((candidate) => candidate.id === row.voie_id)
       return route ? [{
@@ -125,7 +125,7 @@ export default function ClimberArea({ page, user, isAdmin, isOpener, authLoading
 
   return (
     <div className="site-shell">
-      <PrimaryNav page={page} authenticated={Boolean(user)} isAdmin={isAdmin} isOpener={isOpener} canAccessFriends={profile?.shareActivity ?? false} loading={authLoading} onSignOut={onSignOut} />
+      <PrimaryNav page={page} authenticated={Boolean(user)} isAdmin={isAdmin} isOpener={isOpener} canAccessFriends={profile?.shareActivity ?? false} canAccessTraining={profile?.trainingAccess ?? false} loading={authLoading} onSignOut={onSignOut} />
       <header className={`hero hero--${page}`}>
         <div className="hero__content">
           <p className="eyebrow">Topopote · saison par saison</p>

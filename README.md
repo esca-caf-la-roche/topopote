@@ -62,6 +62,20 @@ Les matrices pgTAP `supabase/tests/database/20260817_climber_logbook_rls.test.sq
 npm.cmd run test:db
 ```
 
+## Carnet privé d’entraînement
+
+La page `#entrainement` est réservée aux profils dont `profils.acces_entrainement` est activé manuellement dans Supabase. Ce booléen est protégé par un trigger : un client authentifié ne peut pas se donner lui-même l’accès. Pour l’activer depuis le SQL Editor avec une adresse connue :
+
+```sql
+update public.profils
+set acces_entrainement = true
+where user_id = (select id from auth.users where email = 'grimpeur@example.com');
+```
+
+Une séance concerne le mur ou une falaise extérieure. Chaque ligne conserve la voie, le nombre d’essais de la séance, le statut et le style d’enchaînement. Pour une voie du mur, le premier enchaînement ouvre le modal Topopote avec la date, le style et le cumul des essais préremplis ; l’utilisateur vérifie ensuite les étoiles, le ressenti et le commentaire avant l’enregistrement définitif. Aucun total global d’essais n’est utilisé comme indicateur.
+
+La matrice `supabase/tests/database/20260819_private_training_sessions_rls.test.sql` vérifie l’activation administrée du booléen, l’isolation stricte des séances entre comptes, les contrats mur/extérieur et les suppressions en cascade.
+
 ## Organiser le topo
 
 Dans l’administration, respecter cet ordre :

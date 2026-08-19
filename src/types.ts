@@ -64,6 +64,44 @@ export type ClimberProfile = {
   nickname: string
   publicRanking: boolean
   shareActivity: boolean
+  trainingAccess: boolean
+}
+
+export type TrainingLocation = 'mur' | 'exterieur'
+
+export type TrainingSession = {
+  id: string
+  userId: string
+  date: string
+  location: TrainingLocation
+  crag: string | null
+  sensations: number | null
+  pleasure: number | null
+  fatigueAfter: number | null
+  createdAt: string
+}
+
+export type TrainingRouteEntry = {
+  id: string
+  sessionId: string
+  routeId: string | null
+  routeName: string | null
+  grade: string | null
+  comment: string | null
+  attempts: number
+  sent: boolean
+  style: AscentStyle | null
+  ascentId: string | null
+  createdAt: string
+  sessionDate: string
+  sessionLocation: TrainingLocation
+  sessionCrag: string | null
+}
+
+export type RouteAscentPrefill = {
+  climbedAt: string
+  style: AscentStyle
+  attempts: number
 }
 
 export type RouteAscentSummary = {

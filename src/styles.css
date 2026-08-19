@@ -175,6 +175,7 @@ input[type='color'] { padding: 3px; }
 .stack { display: flex; flex-direction: column; gap: 16px; }
 .stack--large { gap: 36px; }
 .form-grid, .reference-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; }
+.form-grid__wide { grid-column: 1 / -1; }
 .form-grid--season { align-items: end; }
 .form-context { margin: -8px 0 0; }
 .route-create-form, .inline-create { padding: 16px; border: var(--border); background: var(--blue); }
@@ -241,6 +242,7 @@ input[type='color'] { padding: 3px; }
 /* Carnet, profil pratiquant et classement */
 .hero--carnet { background: var(--blue); }
 .hero--classement { background: var(--pink); }
+.hero--entrainement { background: var(--yellow); }
 .climber-title { font-size: clamp(2.7rem, 7vw, 5.7rem); }
 .climber-page { display: flex; flex-direction: column; gap: 48px; margin-top: 48px; }
 .section-kicker { margin: 0 0 6px; font-size: .75rem; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
@@ -260,6 +262,46 @@ input[type='color'] { padding: 3px; }
 .profile-settings form { padding: 18px; border-top: 2px solid var(--ink); background: var(--blue); }
 
 .ascent-form { padding: 28px; border: var(--border); background: var(--yellow); box-shadow: var(--shadow); }
+.training-page { display: flex; flex-direction: column; gap: 42px; margin-top: 48px; }
+.training-access-denied, .training-session-form { padding: 28px; border: var(--border); background: var(--yellow); box-shadow: var(--shadow); }
+.training-access-denied h2, .training-session-form h2, .training-log h2, .training-session-card h3 { margin: 0; }
+.training-session-form form { margin-top: 18px; align-items: end; }
+.training-session-list { display: grid; gap: 24px; margin-top: 20px; }
+.training-session-card { border: var(--border); background: var(--paper); box-shadow: 7px 7px 0 var(--ink); }
+.training-session-card > header { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; padding: 20px; border-bottom: var(--border); background: var(--blue); }
+.training-session-card > header p:last-child { margin-bottom: 0; }
+.session-ratings { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding: 16px 20px; border-bottom: var(--border); background: #ffd8f6; }
+.star-rating { display: grid; gap: 9px; min-width: 0; padding: 12px; border: 2px solid var(--ink); background: var(--paper); }
+.star-rating > div:first-child { display: grid; gap: 2px; }
+.star-rating small { font-size: .68rem; font-weight: 800; }
+.star-rating__controls { display: flex; flex-wrap: wrap; gap: 4px; }
+.star-rating__controls button { display: grid; width: 31px; height: 31px; place-items: center; padding: 0; border: 2px solid var(--ink); background: white; color: #a9a9a9; font-size: 1.05rem; line-height: 1; }
+.star-rating__controls button.is-active { background: var(--yellow); color: var(--ink); }
+.star-rating__controls button:hover:not(:disabled), .star-rating__controls button:focus-visible { background: var(--blue); color: var(--ink); }
+.star-rating__controls button:focus-visible { outline: 3px solid var(--pink); outline-offset: 2px; }
+.star-rating__controls .star-rating__clear { margin-left: 3px; background: #ff8b8b; color: var(--ink); font-size: 1.25rem; }
+.training-icon-action { display: grid; width: 42px; height: 42px; flex: 0 0 42px; place-items: center; padding: 0; border: 2px solid var(--ink); background: var(--paper); box-shadow: 3px 3px 0 var(--ink); font-size: 1.15rem; line-height: 1; }
+.training-icon-action:hover:not(:disabled) { transform: translate(1px, 1px); box-shadow: 2px 2px 0 var(--ink); }
+.training-icon-action:focus-visible { outline: 4px solid var(--pink); outline-offset: 3px; }
+.training-icon-action:disabled { opacity: .55; cursor: wait; }
+.training-icon-action--accent { background: var(--yellow); }
+.training-icon-action--danger { background: #ff8b8b; }
+.training-route-form { padding: 20px; border-bottom: var(--border); background: var(--yellow); }
+.training-route-list { display: grid; }
+.training-route-row { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(180px, auto) auto; gap: 18px; align-items: center; padding: 16px 20px; border-bottom: 2px solid var(--ink); }
+.training-route-row:last-child { border-bottom: 0; }
+.training-route-row > div:first-child, .training-route-status { display: grid; gap: 4px; }
+.training-route-row small { color: #454545; }
+.training-route-attempts { display: flex; gap: 8px; text-align: center; }
+.training-route-attempts > span { display: grid; min-width: 94px; gap: 3px; padding: 8px; border: 2px solid var(--ink); background: var(--yellow); }
+.training-route-attempts strong { font-family: 'Archivo Black', sans-serif; font-size: 1.55rem; line-height: 1; }
+.training-route-attempts small { font-size: .65rem; font-weight: 900; line-height: 1.15; text-transform: uppercase; }
+.training-route-status { justify-items: start; }
+.training-route-status > .style-dot { display: inline-block; }
+.training-route-status .button { padding: 7px 10px; font-size: .75rem; }
+.training-route-actions { display: flex; align-items: center; gap: 8px; }
+.training-route-actions .button { padding: 7px 10px; }
+.training-route-form--edit { border-top: 2px solid var(--ink); }
 .choice-fieldset { margin: 0; padding: 16px; border: var(--border); background: rgb(255 253 247 / 62%); }
 .choice-fieldset legend { padding: 0 8px; font-family: 'Archivo Black', sans-serif; text-transform: uppercase; }
 .style-choices, .feeling-choices { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
@@ -436,12 +478,22 @@ input[type='color'] { padding: 3px; }
   .grade-stats__heading { align-items: flex-start; flex-direction: column; }
   .grade-stats__actions { justify-content: flex-start; }
   .climber-page { gap: 34px; margin-top: 38px; }
+  .training-page { gap: 30px; margin-top: 38px; }
   .climber-title { font-size: clamp(2.4rem, 14vw, 3.4rem); overflow-wrap: anywhere; }
   .hero--carnet .eyebrow, .hero--classement .eyebrow { overflow-wrap: anywhere; }
   .profile-strip, .score-explainer { align-items: stretch; flex-direction: column; padding: 20px; }
   .profile-strip__actions { justify-content: stretch; }
   .profile-strip__actions .button { flex: 1; }
   .auth-card, .ascent-form { padding: 20px; box-shadow: 6px 6px 0 var(--ink); }
+  .training-access-denied, .training-session-form { padding: 20px; box-shadow: 6px 6px 0 var(--ink); }
+  .training-session-card > header { flex-direction: column; }
+  .training-session-card > header .admin-actions { width: 100%; }
+  .training-session-card > header .training-icon-action { width: 46px; height: 46px; flex-basis: 46px; }
+  .session-ratings { grid-template-columns: 1fr; padding: 14px; }
+  .training-route-row { grid-template-columns: minmax(0, 1fr) auto; gap: 14px; }
+  .training-route-attempts { grid-column: 1 / -1; grid-row: auto; flex-wrap: wrap; }
+  .training-route-status { grid-column: 1 / -1; }
+  .training-route-actions { grid-column: 1 / -1; justify-content: flex-end; }
   .auth-card h2, .ascent-form h2 { font-size: clamp(1.65rem, 10vw, 2.35rem); overflow-wrap: anywhere; }
   .style-choices, .feeling-choices, .kpi-grid, .style-stats__grid, .podium { grid-template-columns: 1fr 1fr; }
   .kpi-card { min-height: 150px; }

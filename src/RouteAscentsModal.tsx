@@ -2,8 +2,9 @@ import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { gradeFeelingLabels } from './lib/routeAscents'
 import { styleLabels } from './lib/scoring'
+import { allowedAscentStyles } from './lib/training'
 import { supabase } from './lib/supabase'
-import type { AscentStyle, GradeFeeling, Route, RouteAscentSummary } from './types'
+import type { AscentStyle, GradeFeeling, Route, RouteAscentPrefill, RouteAscentSummary } from './types'
 
 type Feedback = { kind: 'error' | 'success'; text: string } | null
 
@@ -26,6 +27,7 @@ export default function RouteAscentsModal({
   route,
   mode,
   ownStyle,
+  prefill,
   hasProfile,
   sharesActivity,
   onClose,
@@ -35,10 +37,11 @@ export default function RouteAscentsModal({
   route: Route
   mode: 'details' | 'add'
   ownStyle?: AscentStyle
+  prefill?: RouteAscentPrefill
   hasProfile: boolean
   sharesActivity: boolean
   onClose: () => void
-  onAscentCreated: () => Promise<void>
+  onAscentCreated: (ascentId: string) => Promise<void>
   onFeedback: (feedback: Feedback) => void
 }) {
   const [reviews, setReviews] = useState<RouteAscentSummary[]>([])
@@ -138,8 +141,9 @@ export default function RouteAscentsModal({
           <RouteAscentForm
             route={route}
             sharesActivity={sharesActivity}
-            onSaved={async () => {
-              await onAscentCreated()
+            prefill={prefill}
+            onSaved={async (ascentId) => {
+              await onAscentCreated(ascentId)
               await loadReviews()
             }}
             onFeedback={onFeedback}
@@ -165,38 +169,41 @@ export default function RouteAscentsModal({
   )
 }
 
-function RouteAscentForm({ route, sharesActivity, onSaved, onFeedback }: {
+function RouteAscentForm({ route, sharesActivity, prefill, onSaved, onFeedback }: {
   route: Route
   sharesActivity: boolean
-  onSaved: () => Promise<void>
+  prefill?: RouteAscentPrefill
+  onSaved: (ascentId: string) => Promise<void>
   onFeedback: (feedback: Feedback) => void
 }) {
-  const [climbedAt, setClimbedAt] = useState(localDate)
-  const [style, setStyle] = useState<AscentStyle>('apres_travail')
-  const [attempts, setAttempts] = useState(2)
+  const [climbedAt, setClimbedAt] = useState(prefill?.climbedAt ?? localDate)
+  const [style, setStyle] = useState<AscentStyle>(prefill?.style ?? 'apres_travail')
+  const [attempts, setAttempts] = useState(prefill?.attempts ?? 2)
   const [rating, setRating] = useState(0)
   const [feeling, setFeeling] = useState<GradeFeeling>('conforme')
   const [comment, setComment] = useState('')
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState('')
+  const allowedStyles = allowedAscentStyles(attempts)
+  const selectedStyle = allowedStyles.includes(style) ? style : allowedStyles[0]
 
   async function submit(event: FormEvent) {
     event.preventDefault()
     if (!supabase || saving) return
     setFormError('')
     setSaving(true)
-    const finalAttempts = style === 'a_vue' || style === 'flash' ? 1 : attempts
-    const { error } = await supabase.from('enchainements').insert({
+    const finalAttempts = selectedStyle === 'a_vue' || selectedStyle === 'flash' ? 1 : attempts
+    const { data, error } = await supabase.from('enchainements').insert({
       voie_id: route.id,
       saison_id: route.seasonId,
       date_enchainement: climbedAt,
-      style,
+      style: selectedStyle,
       essais: finalAttempts,
       ressenti_cotation: feeling,
       note: rating || null,
       recommande: false,
       commentaire: comment || null,
-    })
+    }).select('id').single()
     setSaving(false)
     if (error) {
       const text = error.code === '23505' ? 'Cette voie est déjà dans ton carnet.' : error.message
@@ -205,15 +212,15 @@ function RouteAscentForm({ route, sharesActivity, onSaved, onFeedback }: {
       return
     }
     onFeedback({ kind: 'success', text: 'Ton enchaînement a été ajouté.' })
-    await onSaved()
+    await onSaved(data.id)
   }
 
   return <section className="route-ascent-form">
     <p className="section-kicker">Ta croix</p><h3>Ajouter mon enchaînement</h3>
     <form className="stack" onSubmit={submit}>
       <label><span>Date</span><input type="date" required max={localDate()} value={climbedAt} onChange={(event) => setClimbedAt(event.target.value)} /></label>
-      <fieldset className="choice-fieldset"><legend>Type d’enchaînement</legend><div className="style-choices">{(Object.keys(styleLabels) as AscentStyle[]).map((value) => <label className={style === value ? 'is-selected' : ''} key={value}><input type="radio" name="route-style" checked={style === value} onChange={() => setStyle(value)} /><span className={`style-dot style-dot--${value}`} /><strong>{styleLabels[value]}</strong></label>)}</div></fieldset>
-      {style !== 'a_vue' && style !== 'flash' && <label><span>Nombre d’essais</span><input type="number" min={1} max={999} required value={attempts} onChange={(event) => setAttempts(Number(event.target.value))} /></label>}
+      <fieldset className="choice-fieldset"><legend>Type d’enchaînement</legend><div className="style-choices">{allowedStyles.map((value) => <label className={selectedStyle === value ? 'is-selected' : ''} key={value}><input type="radio" name="route-style" checked={selectedStyle === value} onChange={() => setStyle(value)} /><span className={`style-dot style-dot--${value}`} /><strong>{styleLabels[value]}</strong></label>)}</div></fieldset>
+      {selectedStyle !== 'a_vue' && selectedStyle !== 'flash' && <label><span>Nombre d’essais</span><input type="number" min={1} max={999} required value={attempts} onChange={(event) => setAttempts(Number(event.target.value))} /></label>}
       <fieldset className="choice-fieldset"><legend>Nombre d’étoiles</legend><div className="rating-row">{[1, 2, 3, 4, 5].map((value) => <button type="button" className={rating >= value ? 'is-selected' : ''} aria-label={`${value} étoile${value > 1 ? 's' : ''}${rating === value ? ', retirer la note' : ''}`} aria-pressed={rating === value} onClick={() => setRating((current) => current === value ? 0 : value)} key={value}>★</button>)}</div></fieldset>
       <fieldset className="choice-fieldset"><legend>Cotation ressentie</legend><div className="feeling-choices">{(Object.entries(gradeFeelingLabels) as [GradeFeeling, string][]).map(([value, label]) => <label className={feeling === value ? 'is-selected' : ''} key={value}><input type="radio" name="route-feeling" checked={feeling === value} onChange={() => setFeeling(value)} /><span>{label}</span></label>)}</div></fieldset>
       <label><span>Commentaire facultatif</span><textarea maxLength={500} rows={3} value={comment} onChange={(event) => setComment(event.target.value)} /></label>

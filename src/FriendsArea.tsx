@@ -43,10 +43,11 @@ function formatActivityDate(value: string) {
     .format(new Date(`${value}T12:00:00`))
 }
 
-export default function FriendsArea({ user, isAdmin, isOpener, authLoading, onSignOut }: {
+export default function FriendsArea({ user, isAdmin, isOpener, canAccessTraining, authLoading, onSignOut }: {
   user: User | null
   isAdmin: boolean
   isOpener: boolean
+  canAccessTraining: boolean
   authLoading: boolean
   onSignOut: () => Promise<void>
 }) {
@@ -166,7 +167,7 @@ export default function FriendsArea({ user, isAdmin, isOpener, authLoading, onSi
 
   return (
     <div className="site-shell">
-      <PrimaryNav page="potes" authenticated={Boolean(user)} isAdmin={isAdmin} isOpener={isOpener} canAccessFriends={sharesProfile} loading={authLoading} onSignOut={onSignOut} />
+      <PrimaryNav page="potes" authenticated={Boolean(user)} isAdmin={isAdmin} isOpener={isOpener} canAccessFriends={sharesProfile} canAccessTraining={canAccessTraining} loading={authLoading} onSignOut={onSignOut} />
       <header className="hero hero--potes">
         <div className="hero__content">
           <p className="eyebrow">Topopote · la cordée</p>

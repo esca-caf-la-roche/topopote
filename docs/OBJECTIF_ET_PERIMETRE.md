@@ -46,6 +46,9 @@ Mettre à disposition un topo numérique simple du mur d’escalade de Saint-Pie
 - annuaire des pseudos pour suivre ou ne plus suivre un autre pratiquant, avec listes « je suis » et « me suivent » ;
 - fil chronologique des enchaînements partagés par les pratiquants suivis ;
 - carnet personnel consultable par saison ;
+- carnet privé de séances au mur et en extérieur, activé manuellement pour les profils autorisés ;
+- suivi des voies essayées sans enchaînement et du nombre d’essais par voie jusqu’au premier enchaînement ;
+- ouverture du modal d’enchaînement du mur avec date, style et cumul des essais préremplis depuis les séances ;
 - tableau de bord avec score, rang, volume, meilleure cotation et répartition des styles ;
 - classement public par saison fondé sur les dix meilleurs enchaînements ;
 - vue administrateur du nombre de profils et de leur volume d’activité.
@@ -63,7 +66,6 @@ Activer le partage donne accès à la page Potes, rend le pseudo découvrable da
 
 ### Hors périmètre actuel
 
-- projets ou tentatives non enchaînées ;
 - répétitions multiples d’une même voie au sein d’une saison ;
 - bonus première ascension, escalade traditionnelle ou compétition ;
 - modération avancée, suspension de compte et audit détaillé des corrections ;

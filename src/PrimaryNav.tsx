@@ -1,16 +1,17 @@
 import { navigationItems, type AppPage } from './lib/navigation'
 import { useState } from 'react'
 
-export default function PrimaryNav({ page, authenticated, isAdmin, isOpener = false, canAccessFriends = false, loading = false, onSignOut }: {
+export default function PrimaryNav({ page, authenticated, isAdmin, isOpener = false, canAccessFriends = false, canAccessTraining = false, loading = false, onSignOut }: {
   page: AppPage
   authenticated: boolean
   isAdmin: boolean
   isOpener?: boolean
   canAccessFriends?: boolean
+  canAccessTraining?: boolean
   loading?: boolean
   onSignOut?: () => Promise<void>
 }) {
-  const items = loading ? [] : navigationItems(authenticated, isAdmin, isOpener, canAccessFriends)
+  const items = loading ? [] : navigationItems(authenticated, isAdmin, isOpener, canAccessFriends, canAccessTraining)
   const [signingOut, setSigningOut] = useState(false)
 
   async function signOut() {
