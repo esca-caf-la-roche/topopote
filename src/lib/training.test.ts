@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { allowedAscentStyles, attemptsBeforeEntry, attemptsThroughEntry, attemptsToFirstSend, externalRouteNames } from './training'
+import { allowedAscentStyles, attemptsBeforeEntry, attemptsThroughEntry, attemptsToFirstSend, externalRouteNames, sessionTrainingLoad, sessionTrainingVolume, weeklyTrainingLoads } from './training'
 import type { TrainingRouteEntry } from '../types'
 
 function entry(overrides: Partial<TrainingRouteEntry>): TrainingRouteEntry {
@@ -52,5 +52,40 @@ describe('cumul des essais jusqu’au premier enchaînement', () => {
   it('réserve à vue et flash à un premier essai', () => {
     expect(allowedAscentStyles(1)).toEqual(['a_vue', 'flash', 'apres_travail', 'moulinette'])
     expect(allowedAscentStyles(2)).toEqual(['apres_travail', 'moulinette'])
+  })
+})
+
+describe('charge et volume de séance', () => {
+  it('calcule la charge à partir de la durée et de l’effort global', () => {
+    expect(sessionTrainingLoad(60, 7)).toBe(420)
+    expect(sessionTrainingLoad(60, 0)).toBe(0)
+    expect(sessionTrainingLoad(null, 7)).toBeNull()
+    expect(sessionTrainingLoad(60, null)).toBeNull()
+  })
+
+  it('additionne du lundi au dimanche et exclut visiblement les saisies incomplètes', () => {
+    expect(weeklyTrainingLoads([
+      { id: 'sunday', date: '2027-01-03', durationMinutes: 60, perceivedEffort: 5 },
+      { id: 'monday', date: '2027-01-04', durationMinutes: 30, perceivedEffort: 4 },
+      { id: 'incomplete', date: '2027-01-05', durationMinutes: 45, perceivedEffort: null },
+    ])).toEqual([
+      { weekStart: '2027-01-04', totalLoad: 120, completeCount: 1, incompleteCount: 1 },
+      { weekStart: '2026-12-28', totalLoad: 300, completeCount: 1, incompleteCount: 0 },
+    ])
+  })
+
+  it('refuse les valeurs hors des limites enregistrables', () => {
+    expect(sessionTrainingLoad(0, 5)).toBeNull()
+    expect(sessionTrainingLoad(60.5, 5)).toBeNull()
+    expect(sessionTrainingLoad(60, 11)).toBeNull()
+  })
+
+  it('décrit séparément le volume réellement enregistré', () => {
+    const entries = [
+      entry({ id: 'worked', attempts: 4 }),
+      entry({ id: 'sent', routeId: 'route-b', attempts: 2, sent: true, style: 'apres_travail' }),
+    ]
+    expect(sessionTrainingVolume(entries)).toEqual({ routes: 2, attempts: 6, sends: 1 })
+    expect(sessionTrainingVolume([])).toEqual({ routes: 0, attempts: 0, sends: 0 })
   })
 })

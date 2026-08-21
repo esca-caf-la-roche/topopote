@@ -69,15 +69,37 @@ export type ClimberProfile = {
 
 export type TrainingLocation = 'mur' | 'exterieur'
 
+export type TrainingActivityType = 'poutre' | 'renforcement' | 'course' | 'randonnee' | 'competition' | 'autre'
+
+export type TrainingContextSignal = 'recuperation' | 'douleur' | 'stress' | 'performance'
+
 export type TrainingSession = {
   id: string
   userId: string
   date: string
   location: TrainingLocation
   crag: string | null
-  sensations: number | null
-  pleasure: number | null
-  fatigueAfter: number | null
+  durationMinutes: number | null
+  perceivedEffort: number | null
+  constraintType: string | null
+  contextSignals: TrainingContextSignal[]
+  contextNote: string | null
+  legacySensations: number | null
+  legacyPleasure: number | null
+  legacyFatigueAfter: number | null
+  createdAt: string
+}
+
+export type TrainingActivity = {
+  id: string
+  userId: string
+  date: string
+  activityType: TrainingActivityType
+  durationMinutes: number | null
+  perceivedEffort: number | null
+  constraintType: string | null
+  contextSignals: TrainingContextSignal[]
+  contextNote: string | null
   createdAt: string
 }
 

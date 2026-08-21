@@ -60,3 +60,55 @@ export function externalRouteNames(entries: TrainingRouteEntry[], crag: string |
 export function allowedAscentStyles(attempts: number) {
   return attempts === 1 ? allAscentStyles : allAscentStyles.filter((style) => style === 'apres_travail' || style === 'moulinette')
 }
+
+export function sessionTrainingLoad(durationMinutes: number | null, perceivedEffort: number | null) {
+  if (durationMinutes === null || perceivedEffort === null) return null
+  if (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 1440) return null
+  if (!Number.isInteger(perceivedEffort) || perceivedEffort < 0 || perceivedEffort > 10) return null
+  return durationMinutes * perceivedEffort
+}
+
+export type TrainingLoadRecord = {
+  id: string
+  date: string
+  durationMinutes: number | null
+  perceivedEffort: number | null
+}
+
+export type WeeklyTrainingLoad = {
+  weekStart: string
+  totalLoad: number
+  completeCount: number
+  incompleteCount: number
+}
+
+function isoWeekStart(dateValue: string) {
+  const date = new Date(`${dateValue}T12:00:00Z`)
+  const day = date.getUTCDay() || 7
+  date.setUTCDate(date.getUTCDate() - day + 1)
+  return date.toISOString().slice(0, 10)
+}
+
+export function weeklyTrainingLoads(records: TrainingLoadRecord[]): WeeklyTrainingLoad[] {
+  const weeks = new Map<string, WeeklyTrainingLoad>()
+  records.forEach((record) => {
+    const weekStart = isoWeekStart(record.date)
+    const week = weeks.get(weekStart) ?? { weekStart, totalLoad: 0, completeCount: 0, incompleteCount: 0 }
+    const load = sessionTrainingLoad(record.durationMinutes, record.perceivedEffort)
+    if (load === null) week.incompleteCount += 1
+    else {
+      week.totalLoad += load
+      week.completeCount += 1
+    }
+    weeks.set(weekStart, week)
+  })
+  return [...weeks.values()].sort((left, right) => right.weekStart.localeCompare(left.weekStart))
+}
+
+export function sessionTrainingVolume(entries: TrainingRouteEntry[]) {
+  return {
+    routes: entries.length,
+    attempts: entries.reduce((total, entry) => total + entry.attempts, 0),
+    sends: entries.filter((entry) => entry.sent).length,
+  }
+}

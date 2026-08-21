@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(27);
+select plan(41);
 
 select ok(
   not has_table_privilege('anon', 'public.seances_entrainement', 'select'),
@@ -15,6 +15,14 @@ select ok(
 select ok(
   has_table_privilege('authenticated', 'public.seances_entrainement', 'select,insert,update,delete'),
   'authenticated possède les opérations filtrées par RLS sur ses séances'
+);
+select ok(
+  not has_table_privilege('anon', 'public.activites_charge', 'select'),
+  'anon ne peut pas lire les activités de charge privées'
+);
+select ok(
+  has_table_privilege('authenticated', 'public.activites_charge', 'select,insert,update,delete'),
+  'authenticated possède les opérations filtrées par RLS sur ses activités de charge'
 );
 
 insert into auth.users (
@@ -119,6 +127,64 @@ select throws_ok(
   null,
   'une note hors de la plage 1 à 5 est refusée'
 );
+select lives_ok(
+  $$update public.seances_entrainement
+    set duree_minutes = 60, effort_percu = 7
+    where id = '60000000-0000-0000-0000-00000000d001'$$,
+  'le propriétaire peut renseigner la durée et l’effort global'
+);
+select results_eq(
+  $$select duree_minutes, effort_percu
+    from public.seances_entrainement
+    where id = '60000000-0000-0000-0000-00000000d001'$$,
+  $$values (60::smallint, 7::smallint)$$,
+  'les données brutes de charge sont conservées sans stocker le calcul'
+);
+select lives_ok(
+  $$update public.seances_entrainement
+    set effort_percu = 0, type_contrainte = 'Bloc max',
+        signaux_contexte = array['douleur'], note_contexte = 'Doigt sensible'
+    where id = '60000000-0000-0000-0000-00000000d001'$$,
+  'la RPE 0 et le contexte restent des données distinctes de la charge'
+);
+select results_eq(
+  $$select effort_percu, type_contrainte, signaux_contexte, note_contexte
+    from public.seances_entrainement
+    where id = '60000000-0000-0000-0000-00000000d001'$$,
+  $$values (0::smallint, 'Bloc max'::text, array['douleur']::text[], 'Doigt sensible'::text)$$,
+  'la RPE 0 ne devient pas une valeur absente et les signaux sont conservés'
+);
+select throws_ok(
+  $$update public.seances_entrainement
+    set effort_percu = 11
+    where id = '60000000-0000-0000-0000-00000000d001'$$,
+  '23514',
+  null,
+  'un effort global hors de la plage 1 à 10 est refusé'
+);
+select throws_ok(
+  $$update public.seances_entrainement
+    set duree_minutes = 1441
+    where id = '60000000-0000-0000-0000-00000000d001'$$,
+  '23514',
+  null,
+  'une durée hors de la plage enregistrable est refusée'
+);
+select lives_ok(
+  $$insert into public.activites_charge (
+      id, user_id, date_activite, type_activite, duree_minutes, effort_percu, type_contrainte
+    ) values (
+      '90000000-0000-0000-0000-00000000d001',
+      '00000000-0000-0000-0000-00000000d002',
+      current_date, 'poutre', 30, 6, 'Arquée'
+    )$$,
+  'le propriétaire autorisé peut enregistrer une activité complémentaire'
+);
+select is(
+  (select user_id from public.activites_charge where id = '90000000-0000-0000-0000-00000000d001'),
+  '00000000-0000-0000-0000-00000000d001'::uuid,
+  'le trigger remplace aussi un propriétaire usurpé sur une activité'
+);
 select throws_ok(
   $$insert into public.voies_seance (seance_id, nom_voie, cotation, nombre_essais)
     values ('60000000-0000-0000-0000-00000000d001', 'Fausse voie', '6a', 1)$$,
@@ -180,6 +246,16 @@ select results_eq(
   'un autre pratiquant ne lit aucune voie privée'
 );
 select results_eq(
+  $$select count(*)::bigint from public.activites_charge$$,
+  $$values (0::bigint)$$,
+  'un autre pratiquant ne lit aucune activité de charge privée'
+);
+select results_eq(
+  $$update public.activites_charge set effort_percu = 10 returning id$$,
+  $$select null::uuid where false$$,
+  'un autre pratiquant ne modifie aucune activité de charge privée'
+);
+select results_eq(
   $$update public.seances_entrainement set sensations = 1 returning id$$,
   $$select null::uuid where false$$,
   'un autre pratiquant ne modifie aucune séance privée'
@@ -230,6 +306,17 @@ select is(
     where id = '70000000-0000-0000-0000-00000000d001'),
   '80000000-0000-0000-0000-00000000d001'::uuid,
   'la liaison du modal reste enregistrée sur la voie de séance'
+);
+select lives_ok(
+  $$delete from public.activites_charge
+    where id = '90000000-0000-0000-0000-00000000d001'$$,
+  'le propriétaire peut supprimer son activité complémentaire'
+);
+select results_eq(
+  $$select count(*)::bigint from public.activites_charge
+    where id = '90000000-0000-0000-0000-00000000d001'$$,
+  $$values (0::bigint)$$,
+  'l’activité complémentaire supprimée disparaît du journal'
 );
 select lives_ok(
   $$delete from public.seances_entrainement
