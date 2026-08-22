@@ -285,7 +285,7 @@ input[type='color'] { padding: 3px; }
 .training-duration-input__value > span, .training-duration-input__times span { position: absolute; width: 1px; height: 1px; clip-path: inset(50%); overflow: hidden; }
 .training-duration-input__times { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .training-duration-input select, .training-duration-input input { width: 100%; min-width: 0; }
-.training-form-field--effort, .training-form-field--fingers { grid-column: span 3; }
+.training-form-field--effort { grid-column: span 3; }
 .training-simple-form--with-context .training-form-field { grid-column: span 2; }
 .training-form-pain { grid-column: span 3; }
 .training-form-field--pain-level { grid-column: span 2; }
@@ -333,7 +333,7 @@ input[type='color'] { padding: 3px; }
 .training-load-edit { display: grid; grid-column: 1 / -1; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 12px; align-items: end; padding: 14px; border: 2px solid var(--ink); background: var(--paper); }
 .training-load-edit > label { display: grid; min-width: 0; gap: 6px; font-weight: 900; }
 .training-load-edit > .training-duration-input { grid-column: span 4; }
-.training-load-edit__fingers, .training-load-edit .button { grid-column: span 2; }
+.training-load-edit .button { grid-column: span 2; }
 .training-load-edit__effort, .training-load-edit > .training-pain-toggle { grid-column: span 3; }
 .training-load-edit--with-pain > label, .training-load-edit--with-pain > .training-pain-toggle, .training-load-edit--with-pain .button { grid-column: span 2; }
 .training-load-edit .button { align-self: end; }
@@ -374,13 +374,10 @@ input[type='color'] { padding: 3px; }
 .training-tutorial__disciplines article { padding: 12px; border: 2px solid var(--ink); background: var(--blue); }
 .training-tutorial__disciplines h4, .training-tutorial__disciplines p { margin: 0; }
 .training-tutorial__disciplines h4 { margin-bottom: 6px; }
-.training-tutorial__choices, .training-tutorial__fingers { display: grid; gap: 10px; }
-.training-tutorial__choices div, .training-tutorial__fingers div { display: grid; grid-template-columns: minmax(90px, .35fr) minmax(0, 1.65fr); gap: 12px; padding: 12px; border: 2px solid var(--ink); background: var(--paper); }
-.training-tutorial__choices dt, .training-tutorial__fingers dt { font-weight: 900; }
-.training-tutorial__choices dd, .training-tutorial__fingers dd { margin: 0; }
-.training-tutorial__fingers div:nth-child(1) { background: #dff5d7; }
-.training-tutorial__fingers div:nth-child(2) { background: var(--yellow); }
-.training-tutorial__fingers div:nth-child(3) { background: #ffb1a8; }
+.training-tutorial__choices { display: grid; gap: 10px; }
+.training-tutorial__choices div { display: grid; grid-template-columns: minmax(90px, .35fr) minmax(0, 1.65fr); gap: 12px; padding: 12px; border: 2px solid var(--ink); background: var(--paper); }
+.training-tutorial__choices dt { font-weight: 900; }
+.training-tutorial__choices dd { margin: 0; }
 .training-tutorial__warning { padding: 14px; border: 3px solid var(--ink); background: #ff8b8b; font-weight: 800; }
 .training-tutorial__done { width: 100%; margin-top: 18px; }
 .training-icon-action { display: grid; width: 42px; height: 42px; flex: 0 0 42px; place-items: center; padding: 0; border: 2px solid var(--ink); background: var(--paper); box-shadow: 3px 3px 0 var(--ink); font-size: 1.15rem; line-height: 1; }
@@ -612,7 +609,7 @@ input[type='color'] { padding: 3px; }
   .training-tutorial { padding: 16px; }
   .training-tutorial__rpe { grid-template-columns: 1fr; }
   .training-tutorial__disciplines { grid-template-columns: 1fr; }
-  .training-tutorial__choices div, .training-tutorial__fingers div { grid-template-columns: 1fr; gap: 4px; }
+  .training-tutorial__choices div { grid-template-columns: 1fr; gap: 4px; }
   .effort-choices { grid-template-columns: repeat(5, minmax(48px, 1fr)); overflow-x: auto; padding-bottom: 4px; }
   .training-route-row { grid-template-columns: minmax(0, 1fr) auto; gap: 14px; }
   .training-route-attempts { grid-column: 1 / -1; grid-row: auto; flex-wrap: wrap; }

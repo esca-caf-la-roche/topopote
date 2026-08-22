@@ -7,7 +7,7 @@ import { styleLabels } from './lib/scoring'
 import { allowedAscentStyles, attemptsBeforeEntry, attemptsThroughEntry, attemptsToFirstSend, externalRouteNames, formatTrainingDuration, medianTrainingLoad, sameTrainingRoute, sessionTrainingLoad, sessionTrainingVolume, trainingDurationBetween, weeklyTrainingLoads } from './lib/training'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
 import { usePendingAction } from './lib/usePendingAction'
-import type { AscentStyle, FingerLoad, Grade, Route, RouteAscentPrefill, TrainingActivity, TrainingActivityType, TrainingLocation, TrainingRouteEntry, TrainingSession } from './types'
+import type { AscentStyle, Grade, Route, RouteAscentPrefill, TrainingActivity, TrainingActivityType, TrainingLocation, TrainingRouteEntry, TrainingSession } from './types'
 
 type Feedback = { kind: 'error' | 'success'; text: string } | null
 
@@ -19,7 +19,6 @@ type SessionRow = {
   falaise: string | null
   duree_minutes: number | null
   effort_percu: number | null
-  contrainte_doigts: FingerLoad | null
   douleur: number | null
   created_at: string
 }
@@ -31,12 +30,11 @@ type ActivityRow = {
   type_activite: TrainingActivityType
   duree_minutes: number | null
   effort_percu: number | null
-  contrainte_doigts: FingerLoad | null
   douleur: number | null
   created_at: string
 }
 
-type SessionTracking = Pick<TrainingSession, 'durationMinutes' | 'perceivedEffort' | 'fingerLoad' | 'pain'>
+type SessionTracking = Pick<TrainingSession, 'durationMinutes' | 'perceivedEffort' | 'pain'>
 type DurationMode = 'duration' | 'times'
 
 type EntryRow = {
@@ -147,8 +145,8 @@ export default function TrainingArea({ user, isAdmin, isOpener, sharesActivity, 
     }
     setLoading(true)
     const [sessionsResult, activitiesResult, entriesResult, ascentsResult] = await Promise.all([
-      supabase.from('seances_entrainement').select('id, user_id, date_seance, type_lieu, falaise, duree_minutes, effort_percu, contrainte_doigts, douleur, created_at').order('date_seance', { ascending: false }).order('created_at', { ascending: false }),
-      supabase.from('activites_charge').select('id, user_id, date_activite, type_activite, duree_minutes, effort_percu, contrainte_doigts, douleur, created_at').order('date_activite', { ascending: false }).order('created_at', { ascending: false }),
+      supabase.from('seances_entrainement').select('id, user_id, date_seance, type_lieu, falaise, duree_minutes, effort_percu, douleur, created_at').order('date_seance', { ascending: false }).order('created_at', { ascending: false }),
+      supabase.from('activites_charge').select('id, user_id, date_activite, type_activite, duree_minutes, effort_percu, douleur, created_at').order('date_activite', { ascending: false }).order('created_at', { ascending: false }),
       supabase.from('voies_seance').select('id, seance_id, voie_id, nom_voie, cotation, commentaire, nombre_essais, enchainee, style, enchainement_id, created_at').order('created_at'),
       supabase.from('enchainements').select('id, voie_id').eq('user_id', user.id),
     ])
@@ -166,7 +164,6 @@ export default function TrainingArea({ user, isAdmin, isOpener, sharesActivity, 
       crag: row.falaise,
       durationMinutes: row.duree_minutes ?? null,
       perceivedEffort: row.effort_percu ?? null,
-      fingerLoad: row.contrainte_doigts ?? null,
       pain: row.douleur ?? null,
       createdAt: row.created_at,
     }))
@@ -177,7 +174,6 @@ export default function TrainingArea({ user, isAdmin, isOpener, sharesActivity, 
       activityType: row.type_activite,
       durationMinutes: row.duree_minutes ?? null,
       perceivedEffort: row.effort_percu ?? null,
-      fingerLoad: row.contrainte_doigts ?? null,
       pain: row.douleur ?? null,
       createdAt: row.created_at,
     })))
@@ -206,7 +202,7 @@ export default function TrainingArea({ user, isAdmin, isOpener, sharesActivity, 
   useEffect(() => { void loadTraining() }, [loadTraining])
 
   async function updateSessionLoad(sessionId: string, values: SessionTracking) {
-    const { error } = await supabase!.from('seances_entrainement').update({ duree_minutes: values.durationMinutes, effort_percu: values.perceivedEffort, contrainte_doigts: values.fingerLoad, douleur: values.pain }).eq('id', sessionId)
+    const { error } = await supabase!.from('seances_entrainement').update({ duree_minutes: values.durationMinutes, effort_percu: values.perceivedEffort, douleur: values.pain }).eq('id', sessionId)
     if (error) {
       setFeedback({ kind: 'error', text: `Impossible d’enregistrer la charge : ${error.message}` })
       return false
@@ -282,7 +278,6 @@ const activityLabels: Record<TrainingActivityType, string> = {
 }
 const simpleActivityTypes: TrainingActivityType[] = ['bloc_interieur', 'bloc_exterieur', 'poutre', 'ppg', 'cardio']
 const effortLabels = ['Quasiment aucun effort', 'Très facile', 'Facile', 'Facile à modérée', 'Modérée', 'Difficile mais maîtrisée', 'Difficile et productive', 'Très difficile', 'Extrêmement difficile', 'Maximum exceptionnel']
-const fingerLabels: Record<FingerLoad, string> = { faible: 'Faible', moyenne: 'Moyenne', forte: 'Forte' }
 const painLabel = (pain: number | null) => pain === null ? 'Douleur —' : pain === 0 ? 'Pas de douleur' : `Douleur ${pain}/10`
 const durationOptions = Array.from({ length: 96 }, (_, index) => (index + 1) * 15)
 
@@ -358,7 +353,7 @@ function ActivityCard({ activity, onChanged, onFeedback }: { activity: TrainingA
       await onChanged()
     })
   }
-  return <article className="training-activity-card"><div><p className="section-kicker">Autres · {activityLabels[activity.activityType]}</p><h3>{formatDate(activity.date)}</h3><div className="training-simple-tags"><span>Doigts {activity.fingerLoad ? fingerLabels[activity.fingerLoad] : '—'}</span><span className={activity.pain ? 'is-pain' : ''}>{painLabel(activity.pain)}</span></div></div><div className="training-activity-card__load"><output>{load ?? '—'}{load !== null ? ' UA' : ''}</output><small>{load === null ? 'Données incomplètes' : `${activity.durationMinutes} min × RPE ${activity.perceivedEffort}/10`}</small></div><button className="training-icon-action training-icon-action--danger" type="button" aria-label="Supprimer l’activité" disabled={pending} onClick={() => void remove()}>🗑️</button></article>
+  return <article className="training-activity-card"><div><p className="section-kicker">Autres · {activityLabels[activity.activityType]}</p><h3>{formatDate(activity.date)}</h3><div className="training-simple-tags"><span className={activity.pain ? 'is-pain' : ''}>{painLabel(activity.pain)}</span></div></div><div className="training-activity-card__load"><output>{load ?? '—'}{load !== null ? ' UA' : ''}</output><small>{load === null ? 'Données incomplètes' : `${activity.durationMinutes} min × RPE ${activity.perceivedEffort}/10`}</small></div><button className="training-icon-action training-icon-action--danger" type="button" aria-label="Supprimer l’activité" disabled={pending} onClick={() => void remove()}>🗑️</button></article>
 }
 
 function SessionForm({ sessions, onCreated, onFeedback }: { sessions: TrainingSession[]; onCreated: () => Promise<void>; onFeedback: (feedback: Feedback) => void }) {
@@ -371,7 +366,6 @@ function SessionForm({ sessions, onCreated, onFeedback }: { sessions: TrainingSe
   const [startTime, setStartTime] = useState('')
   const [endTime, setEndTime] = useState('')
   const [effort, setEffort] = useState('')
-  const [fingerLoad, setFingerLoad] = useState<FingerLoad>('moyenne')
   const [hasPain, setHasPain] = useState(false)
   const [pain, setPain] = useState('')
   const crags = useMemo(() => [...new Set(sessions.filter((session) => session.location === 'exterieur').map((session) => session.crag?.trim()).filter((value): value is string => Boolean(value)))].sort((left, right) => left.localeCompare(right, 'fr', { sensitivity: 'base' })), [sessions])
@@ -383,7 +377,7 @@ function SessionForm({ sessions, onCreated, onFeedback }: { sessions: TrainingSe
       const canBeIncomplete = activity !== 'autre'
       if ((!canBeIncomplete || duration || startTime || endTime) && durationMinutes === null) return onFeedback({ kind: 'error', text: 'Le temps de séance est invalide. Renseigne les deux horaires, différents l’un de l’autre.' })
       if (!canBeIncomplete && !effort) return onFeedback({ kind: 'error', text: 'La durée et la RPE sont obligatoires pour cette activité.' })
-      const common = { duree_minutes: durationMinutes, effort_percu: effort ? Number(effort) : null, contrainte_doigts: fingerLoad, douleur: hasPain ? Number(pain) : 0 }
+      const common = { duree_minutes: durationMinutes, effort_percu: effort ? Number(effort) : null, douleur: hasPain ? Number(pain) : 0 }
       const { error } = activity === 'autre'
         ? await supabase!.from('activites_charge').insert({ date_activite: date, type_activite: activityType, ...common })
         : await supabase!.from('seances_entrainement').insert({ date_seance: date, type_lieu: activity, falaise: activity === 'exterieur' ? crag.trim() : null, ...common })
@@ -408,7 +402,6 @@ function SessionForm({ sessions, onCreated, onFeedback }: { sessions: TrainingSe
     {activity === 'autre' && <label className="training-form-field training-form-field--context"><span>Type d’activité</span><select aria-label="Type d’activité" value={activityType} onChange={(event) => setActivityType(event.target.value as TrainingActivityType)}>{simpleActivityTypes.map((value) => <option value={value} key={value}>{activityLabels[value]}</option>)}</select></label>}
     <DurationInput name="duration-mode" mode={durationMode} duration={duration} startTime={startTime} endTime={endTime} optional={activity !== 'autre'} onModeChange={setDurationMode} onDurationChange={setDuration} onStartTimeChange={setStartTime} onEndTimeChange={setEndTime} />
     <label className="training-form-field training-form-field--effort"><span>RPE</span><select aria-label="RPE" required={activity === 'autre'} value={effort} onChange={(event) => setEffort(event.target.value)}><option value="">{activity === 'autre' ? 'Choisir' : 'À compléter plus tard'}</option>{effortLabels.map((label, index) => <option value={index + 1} key={index + 1}>{index + 1} — {label}</option>)}</select></label>
-    <label className="training-form-field training-form-field--fingers"><span>Doigts</span><select aria-label="Doigts" value={fingerLoad} onChange={(event) => setFingerLoad(event.target.value as FingerLoad)}>{Object.entries(fingerLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
     <div className="training-form-pain"><PainToggle name="pain" hasPain={hasPain} onChange={(value) => { setHasPain(value); if (!value) setPain('') }} /></div>
     {hasPain && <label className="training-form-field training-form-field--pain-level"><span>Douleur (1–10)</span><input aria-label="Douleur de 1 à 10" type="number" min="1" max="10" required value={pain} onChange={(event) => setPain(event.target.value)} /></label>}
     <button className="button button--accent training-simple-form__submit" disabled={pending}>{pending ? 'Enregistrement…' : 'Enregistrer la séance'}</button>
@@ -453,7 +446,6 @@ function SessionLoad({ session, entries, onChange }: { session: TrainingSession;
   const [startTime, setStartTime] = useState('')
   const [endTime, setEndTime] = useState('')
   const [effort, setEffort] = useState(session.perceivedEffort?.toString() ?? '')
-  const [fingerLoad, setFingerLoad] = useState<FingerLoad>(session.fingerLoad ?? 'moyenne')
   const [hasPain, setHasPain] = useState(Boolean(session.pain))
   const [pain, setPain] = useState(session.pain ? session.pain.toString() : '')
   const load = sessionTrainingLoad(session.durationMinutes, session.perceivedEffort)
@@ -466,7 +458,7 @@ function SessionLoad({ session, entries, onChange }: { session: TrainingSession;
     if ((duration || startTime || endTime) && durationMinutes === null) return
     if (hasPain && !pain) return
     setSaving(true)
-    const saved = await onChange(session.id, { durationMinutes, perceivedEffort: effort ? Number(effort) : null, fingerLoad, pain: hasPain ? Number(pain) : 0 })
+    const saved = await onChange(session.id, { durationMinutes, perceivedEffort: effort ? Number(effort) : null, pain: hasPain ? Number(pain) : 0 })
     setSaving(false)
     if (!saved) return
     setEditing(false)
@@ -478,9 +470,9 @@ function SessionLoad({ session, entries, onChange }: { session: TrainingSession;
       <output>{load === null ? '—' : `${load} UA`}</output>
       <small>{load === null ? 'Séance à compléter' : `${formatTrainingDuration(session.durationMinutes!)} × RPE ${session.perceivedEffort}/10`}</small>
     </div>
-    <div className="session-load__details"><p>Ressenti et volume</p><div className="training-simple-tags"><span>Doigts {session.fingerLoad ? fingerLabels[session.fingerLoad] : '—'}</span><span className={session.pain ? 'is-pain' : ''}>{painLabel(session.pain)}</span></div><div className="session-load__volume" aria-label="Volume enregistré"><span><strong>{volume.routes}</strong> voie{volume.routes > 1 ? 's' : ''}</span><span><strong>{volume.attempts}</strong> essai{volume.attempts > 1 ? 's' : ''}</span><span><strong>{volume.sends}</strong> enchaînement{volume.sends > 1 ? 's' : ''}</span></div></div>
+    <div className="session-load__details"><p>Ressenti et volume</p><div className="training-simple-tags"><span className={session.pain ? 'is-pain' : ''}>{painLabel(session.pain)}</span></div><div className="session-load__volume" aria-label="Volume enregistré"><span><strong>{volume.routes}</strong> voie{volume.routes > 1 ? 's' : ''}</span><span><strong>{volume.attempts}</strong> essai{volume.attempts > 1 ? 's' : ''}</span><span><strong>{volume.sends}</strong> enchaînement{volume.sends > 1 ? 's' : ''}</span></div></div>
     <button className="button button--small session-load__edit" type="button" onClick={() => setEditing((value) => !value)}>{editing ? 'Annuler' : 'Modifier ma séance'}</button>
-    {editing && <form className={`training-load-edit${hasPain ? ' training-load-edit--with-pain' : ''}`} onSubmit={save}><DurationInput compact name={`edit-duration-mode-${session.id}`} mode={durationMode} duration={duration} startTime={startTime} endTime={endTime} optional onModeChange={setDurationMode} onDurationChange={setDuration} onStartTimeChange={setStartTime} onEndTimeChange={setEndTime} /><label className="training-load-edit__effort"><span>RPE</span><select aria-label="RPE de la séance" value={effort} onChange={(event) => setEffort(event.target.value)}><option value="">À compléter plus tard</option>{effortLabels.map((label, index) => <option value={index + 1} key={index + 1}>{index + 1} — {label}</option>)}</select></label><label className="training-load-edit__fingers"><span>Doigts</span><select value={fingerLoad} onChange={(event) => setFingerLoad(event.target.value as FingerLoad)}>{Object.entries(fingerLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label><PainToggle name={`edit-pain-${session.id}`} hasPain={hasPain} onChange={(value) => { setHasPain(value); if (!value) setPain('') }} />{hasPain && <label className="training-load-edit__pain-level"><span>Douleur (1–10)</span><input type="number" min="1" max="10" required value={pain} onChange={(event) => setPain(event.target.value)} /></label>}<button className="button button--accent" disabled={saving}>{saving ? 'Enregistrement…' : 'Enregistrer'}</button></form>}
+    {editing && <form className={`training-load-edit${hasPain ? ' training-load-edit--with-pain' : ''}`} onSubmit={save}><DurationInput compact name={`edit-duration-mode-${session.id}`} mode={durationMode} duration={duration} startTime={startTime} endTime={endTime} optional onModeChange={setDurationMode} onDurationChange={setDuration} onStartTimeChange={setStartTime} onEndTimeChange={setEndTime} /><label className="training-load-edit__effort"><span>RPE</span><select aria-label="RPE de la séance" value={effort} onChange={(event) => setEffort(event.target.value)}><option value="">À compléter plus tard</option>{effortLabels.map((label, index) => <option value={index + 1} key={index + 1}>{index + 1} — {label}</option>)}</select></label><PainToggle name={`edit-pain-${session.id}`} hasPain={hasPain} onChange={(value) => { setHasPain(value); if (!value) setPain('') }} />{hasPain && <label className="training-load-edit__pain-level"><span>Douleur (1–10)</span><input type="number" min="1" max="10" required value={pain} onChange={(event) => setPain(event.target.value)} /></label>}<button className="button button--accent" disabled={saving}>{saving ? 'Enregistrement…' : 'Enregistrer'}</button></form>}
   </section>
 }
 

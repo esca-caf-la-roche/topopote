@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(41);
+select plan(42);
 
 select ok(
   not has_table_privilege('anon', 'public.seances_entrainement', 'select'),
@@ -23,6 +23,18 @@ select ok(
 select ok(
   has_table_privilege('authenticated', 'public.activites_charge', 'select,insert,update,delete'),
   'authenticated possède les opérations filtrées par RLS sur ses activités de charge'
+);
+select hasnt_column(
+  'public',
+  'seances_entrainement',
+  'contrainte_doigts',
+  'les séances ne stockent plus de charge des doigts'
+);
+select hasnt_column(
+  'public',
+  'activites_charge',
+  'contrainte_doigts',
+  'les autres activités ne stockent plus de charge des doigts'
 );
 
 insert into auth.users (
@@ -108,17 +120,16 @@ select lives_ok(
 );
 select lives_ok(
   $$update public.seances_entrainement
-    set duree_minutes = 60, effort_percu = 7,
-        contrainte_doigts = 'forte', douleur = 4
+    set duree_minutes = 60, effort_percu = 7, douleur = 4
     where id = '60000000-0000-0000-0000-00000000d001'$$,
   'le propriétaire peut renseigner le suivi simple de sa séance'
 );
 select results_eq(
-  $$select duree_minutes, effort_percu, contrainte_doigts, douleur
+  $$select duree_minutes, effort_percu, douleur
     from public.seances_entrainement
     where id = '60000000-0000-0000-0000-00000000d001'$$,
-  $$values (60::smallint, 7::smallint, 'forte'::text, 4::smallint)$$,
-  'le temps, la RPE, les doigts et la douleur sont conservés'
+  $$values (60::smallint, 7::smallint, 4::smallint)$$,
+  'le temps, la RPE et la douleur sont conservés'
 );
 select throws_ok(
   $$update public.seances_entrainement
@@ -135,14 +146,6 @@ select throws_ok(
   '23514',
   null,
   'un effort global hors de la plage 1 à 10 est refusé'
-);
-select throws_ok(
-  $$update public.seances_entrainement
-    set contrainte_doigts = 'énorme'
-    where id = '60000000-0000-0000-0000-00000000d001'$$,
-  '23514',
-  null,
-  'une contrainte doigts inconnue est refusée'
 );
 select throws_ok(
   $$update public.seances_entrainement
@@ -170,20 +173,20 @@ select throws_ok(
 );
 select lives_ok(
   $$insert into public.activites_charge (
-      id, user_id, date_activite, type_activite, duree_minutes, effort_percu, contrainte_doigts, douleur
+      id, user_id, date_activite, type_activite, duree_minutes, effort_percu, douleur
     ) values (
       '90000000-0000-0000-0000-00000000d001',
       '00000000-0000-0000-0000-00000000d002',
-      current_date, 'bloc_interieur', 30, 6, 'moyenne', 0
+      current_date, 'bloc_interieur', 30, 6, 0
     )$$,
   'le propriétaire autorisé peut enregistrer une activité complémentaire'
 );
 select results_eq(
-  $$select type_activite, contrainte_doigts, douleur
+  $$select type_activite, douleur
     from public.activites_charge
     where id = '90000000-0000-0000-0000-00000000d001'$$,
-  $$values ('bloc_interieur'::text, 'moyenne'::text, 0::smallint)$$,
-  'une autre activité conserve son type, ses doigts et son absence de douleur'
+  $$values ('bloc_interieur'::text, 0::smallint)$$,
+  'une autre activité conserve son type et son absence de douleur'
 );
 select is(
   (select user_id from public.activites_charge where id = '90000000-0000-0000-0000-00000000d001'),

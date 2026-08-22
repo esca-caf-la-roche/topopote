@@ -71,8 +71,6 @@ export type TrainingLocation = 'mur' | 'exterieur'
 
 export type TrainingActivityType = 'bloc_interieur' | 'bloc_exterieur' | 'poutre' | 'ppg' | 'cardio' | 'renforcement' | 'course' | 'randonnee' | 'competition' | 'autre'
 
-export type FingerLoad = 'faible' | 'moyenne' | 'forte'
-
 export type TrainingSession = {
   id: string
   userId: string
@@ -81,7 +79,6 @@ export type TrainingSession = {
   crag: string | null
   durationMinutes: number | null
   perceivedEffort: number | null
-  fingerLoad: FingerLoad | null
   pain: number | null
   createdAt: string
 }
@@ -93,7 +90,6 @@ export type TrainingActivity = {
   activityType: TrainingActivityType
   durationMinutes: number | null
   perceivedEffort: number | null
-  fingerLoad: FingerLoad | null
   pain: number | null
   createdAt: string
 }

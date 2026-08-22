@@ -30,12 +30,6 @@ const rpeChoices = [
   ['9 ou 10 ?', '10 correspond au maximum exceptionnel de toute la séance, pas à un seul mouvement tenté très fort.'],
 ]
 
-const fingerExamples = [
-  ['Faible', 'Technique facile, grosses prises, dalle ou renforcement général.'],
-  ['Moyenne', 'Volume varié, prises confortables et quelques efforts soutenus.'],
-  ['Forte', 'Bloc max, arquée, petites prises, bi-doigts, poutre lourde ou nombreux runs de projet.'],
-]
-
 export default function TrainingLoadTutorial({ onClose }: { onClose: () => void }) {
   const dialogRef = useRef<HTMLElement>(null)
 
@@ -70,7 +64,7 @@ export default function TrainingLoadTutorial({ onClose }: { onClose: () => void 
     <section ref={dialogRef} className="modal training-tutorial" role="dialog" aria-modal="true" aria-labelledby="training-load-tutorial-title" aria-describedby="training-load-tutorial-intro" tabIndex={-1}>
       <button data-initial-focus className="modal__close" type="button" aria-label="Fermer le tutoriel" onClick={onClose}>×</button>
       <header><p className="section-kicker">Guide simple</p><h2 id="training-load-tutorial-title">La charge, simplement</h2></header>
-      <p id="training-load-tutorial-intro">Ce score sert à comparer tes propres semaines avec la même méthode. Il ne mesure pas précisément les contraintes sur les doigts et ne prédit pas une blessure.</p>
+      <p id="training-load-tutorial-intro">Ce score sert à comparer tes propres semaines avec la même méthode. Il ne prédit pas une blessure.</p>
 
       <section><h3>1. Le calcul</h3><p className="training-tutorial__formula"><strong>Charge = temps (min) × RPE (1–10)</strong><br />Exemple : 90 min × RPE 8 = 720 UA. Arrondis le temps au quart d’heure le plus proche ; sous 15 minutes, garde le temps réel.</p></section>
 
@@ -82,9 +76,7 @@ export default function TrainingLoadTutorial({ onClose }: { onClose: () => void 
 
       <section><h3>5. Si tu hésites entre deux notes</h3><dl className="training-tutorial__choices">{rpeChoices.map(([title, explanation]) => <div key={title}><dt>{title}</dt><dd>{explanation}</dd></div>)}</dl></section>
 
-      <section><h3>6. Choisir la contrainte des doigts</h3><p>Cette note décrit la sollicitation locale des doigts, indépendamment de la RPE globale. Deux séances à charge identique peuvent être très différentes pour les doigts.</p><dl className="training-tutorial__fingers">{fingerExamples.map(([title, example]) => <div key={title}><dt>{title}</dt><dd>{example}</dd></div>)}</dl><p><strong>Exemple :</strong> une séance courte de bloc max peut avoir une RPE 6 mais une contrainte doigts forte. Une longue séance de technique sur grosses prises peut avoir une RPE 6 et une contrainte faible.</p></section>
-
-      <section><h3>7. Douleur et historique</h3><p>Si tu as mal, indique une intensité de 1 à 10. Observe au moins 4 semaines complètes avant de comparer tes semaines à ta propre habitude : il n’existe pas de valeur idéale universelle.</p><p className="training-tutorial__warning">Une douleur persistante, croissante ou qui modifie le geste passe avant le score. Réduis la sollicitation concernée et demande un avis professionnel si nécessaire.</p></section>
+      <section><h3>6. Douleur et historique</h3><p>Si tu as mal, indique une intensité de 1 à 10. Observe au moins 4 semaines complètes avant de comparer tes semaines à ta propre habitude : il n’existe pas de valeur idéale universelle.</p><p className="training-tutorial__warning">Une douleur persistante, croissante ou qui modifie le geste passe avant le score. Réduis la sollicitation concernée et demande un avis professionnel si nécessaire.</p></section>
       <button className="button button--accent training-tutorial__done" type="button" onClick={onClose}>J’ai compris</button>
     </section>
   </div>, document.body)
