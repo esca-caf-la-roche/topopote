@@ -49,6 +49,9 @@ describe('TrainingArea', () => {
     expect(screen.getByLabelText('RPE')).toBeTruthy()
     expect(screen.getByLabelText('Doigts')).toBeTruthy()
     const painGroup = screen.getByRole('group', { name: 'Douleurs' })
+    expect(screen.getByRole('radio', { name: 'Durée' })).toBeTruthy()
+    expect(screen.getByLabelText('Durée de la séance')).toBeTruthy()
+    expect(within(screen.getByLabelText('Durée de la séance')).getByRole('option', { name: '1h15' })).toBeTruthy()
     expect((within(painGroup).getByRole('radio', { name: 'Non' }) as HTMLInputElement).checked).toBe(true)
     expect((within(painGroup).getByRole('radio', { name: 'Oui' }) as HTMLInputElement).checked).toBe(false)
     await waitFor(() => expect(screen.getByText('Aucune séance enregistrée.')).toBeTruthy())
@@ -62,13 +65,44 @@ describe('TrainingArea', () => {
     expect(screen.getByLabelText('Type d’activité')).toBeTruthy()
     expect(within(screen.getByLabelText('Type d’activité')).getByRole('option', { name: 'Bloc intérieur' })).toBeTruthy()
     fireEvent.change(screen.getByLabelText('Type d’activité'), { target: { value: 'poutre' } })
-    fireEvent.change(screen.getByRole('spinbutton', { name: /Temps/ }), { target: { value: '83' } })
+    fireEvent.change(screen.getByLabelText('Durée de la séance'), { target: { value: '90' } })
     fireEvent.change(screen.getByLabelText('RPE'), { target: { value: '6' } })
     fireEvent.change(screen.getByLabelText('Doigts'), { target: { value: 'forte' } })
     fireEvent.click(screen.getByLabelText('Oui'))
     fireEvent.change(screen.getByLabelText('Douleur de 1 à 10'), { target: { value: '4' } })
     fireEvent.click(screen.getByRole('button', { name: 'Enregistrer la séance' }))
     await waitFor(() => expect(insert).toHaveBeenCalledWith(expect.objectContaining({ type_activite: 'poutre', duree_minutes: 90, effort_percu: 6, contrainte_doigts: 'forte', douleur: 4 })))
+  })
+
+  it('enregistre immédiatement une séance incomplète puis calcule la durée depuis les horaires', async () => {
+    render(<TrainingArea user={{ id: 'user-1' } as never} isAdmin={false} isOpener={false} sharesActivity={false} hasTrainingAccess authLoading={false} routes={[]} grades={[]} onSignOut={async () => undefined} />)
+    await screen.findByRole('heading', { name: 'Enregistrer ma séance' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer la séance' }))
+    await waitFor(() => expect(insert).toHaveBeenCalledWith(expect.objectContaining({ duree_minutes: null, effort_percu: null })))
+
+    insert.mockClear()
+    fireEvent.click(screen.getByRole('radio', { name: 'Début / fin' }))
+    fireEvent.change(screen.getByLabelText('Heure de début'), { target: { value: '18:00' } })
+    fireEvent.change(screen.getByLabelText('Heure de fin'), { target: { value: '19:23' } })
+    fireEvent.change(screen.getByLabelText('RPE'), { target: { value: '7' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer la séance' }))
+    await waitFor(() => expect(insert).toHaveBeenCalledWith(expect.objectContaining({ duree_minutes: 90, effort_percu: 7 })))
+  })
+
+  it('complète ensuite une séance avec une durée affichée en heures', async () => {
+    const session = { id: 'session-1', user_id: 'user-1', date_seance: '2026-08-22', type_lieu: 'mur', falaise: null, duree_minutes: null, effort_percu: null, contrainte_doigts: 'moyenne', douleur: 0, created_at: '2026-08-22T08:00:00Z' }
+    from.mockImplementation((table: string) => queryResult(table === 'seances_entrainement' ? [session] : []))
+    render(<TrainingArea user={{ id: 'user-1' } as never} isAdmin={false} isOpener={false} sharesActivity={false} hasTrainingAccess authLoading={false} routes={[]} grades={[]} onSignOut={async () => undefined} />)
+
+    const card = (await screen.findByText('22/08/2026')).closest('article')!
+    expect(within(card).getByText('Séance à compléter')).toBeTruthy()
+    fireEvent.click(within(card).getByRole('button', { name: 'Modifier ma séance' }))
+    fireEvent.change(within(card).getByLabelText('Durée de la séance'), { target: { value: '75' } })
+    fireEvent.change(within(card).getByLabelText('RPE de la séance'), { target: { value: '7' } })
+    fireEvent.click(within(card).getByRole('button', { name: 'Enregistrer' }))
+
+    await waitFor(() => expect(update).toHaveBeenCalledWith(expect.objectContaining({ duree_minutes: 75, effort_percu: 7 })))
   })
 
   it('restaure une voie extérieure en cours après avoir quitté la page', async () => {
@@ -105,11 +139,11 @@ describe('TrainingArea', () => {
     const comment = await screen.findByText('Très belle voie.')
     const currentSession = screen.getByText('18/08/2026').closest('article')!
     expect(within(currentSession).getByText('420 UA')).toBeTruthy()
-    expect(within(currentSession).getByText('60 min × RPE 7/10')).toBeTruthy()
+    expect(within(currentSession).getByText('1h00 × RPE 7/10')).toBeTruthy()
     expect(within(currentSession).getByText('Doigts Forte')).toBeTruthy()
     expect(within(currentSession).getByLabelText('Volume enregistré').textContent).toContain('2 essais')
     expect(within(currentSession).getByLabelText('Volume enregistré').textContent).toContain('1 enchaînement')
-    fireEvent.click(within(currentSession).getByRole('button', { name: 'Modifier' }))
+    fireEvent.click(within(currentSession).getByRole('button', { name: 'Modifier ma séance' }))
     const editPainGroup = within(currentSession).getByRole('group', { name: 'Douleurs' })
     fireEvent.click(within(editPainGroup).getByRole('radio', { name: 'Oui' }))
     expect(within(currentSession).getByRole('spinbutton', { name: 'Douleur (1–10)' })).toBeTruthy()

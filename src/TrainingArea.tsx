@@ -4,7 +4,7 @@ import PrimaryNav from './PrimaryNav'
 import RouteAscentsModal from './RouteAscentsModal'
 import TrainingLoadTutorial from './TrainingLoadTutorial'
 import { styleLabels } from './lib/scoring'
-import { allowedAscentStyles, attemptsBeforeEntry, attemptsThroughEntry, attemptsToFirstSend, externalRouteNames, medianTrainingLoad, roundTrainingDuration, sameTrainingRoute, sessionTrainingLoad, sessionTrainingVolume, weeklyTrainingLoads } from './lib/training'
+import { allowedAscentStyles, attemptsBeforeEntry, attemptsThroughEntry, attemptsToFirstSend, externalRouteNames, formatTrainingDuration, medianTrainingLoad, sameTrainingRoute, sessionTrainingLoad, sessionTrainingVolume, trainingDurationBetween, weeklyTrainingLoads } from './lib/training'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
 import { usePendingAction } from './lib/usePendingAction'
 import type { AscentStyle, FingerLoad, Grade, Route, RouteAscentPrefill, TrainingActivity, TrainingActivityType, TrainingLocation, TrainingRouteEntry, TrainingSession } from './types'
@@ -37,6 +37,7 @@ type ActivityRow = {
 }
 
 type SessionTracking = Pick<TrainingSession, 'durationMinutes' | 'perceivedEffort' | 'fingerLoad' | 'pain'>
+type DurationMode = 'duration' | 'times'
 
 type EntryRow = {
   id: string
@@ -283,6 +284,39 @@ const simpleActivityTypes: TrainingActivityType[] = ['bloc_interieur', 'bloc_ext
 const effortLabels = ['Quasiment aucun effort', 'Très facile', 'Facile', 'Facile à modérée', 'Modérée', 'Difficile mais maîtrisée', 'Difficile et productive', 'Très difficile', 'Extrêmement difficile', 'Maximum exceptionnel']
 const fingerLabels: Record<FingerLoad, string> = { faible: 'Faible', moyenne: 'Moyenne', forte: 'Forte' }
 const painLabel = (pain: number | null) => pain === null ? 'Douleur —' : pain === 0 ? 'Pas de douleur' : `Douleur ${pain}/10`
+const durationOptions = Array.from({ length: 96 }, (_, index) => (index + 1) * 15)
+
+function DurationInput({ name, mode, duration, startTime, endTime, optional, compact = false, onModeChange, onDurationChange, onStartTimeChange, onEndTimeChange }: {
+  name: string
+  mode: DurationMode
+  duration: string
+  startTime: string
+  endTime: string
+  optional: boolean
+  compact?: boolean
+  onModeChange: (mode: DurationMode) => void
+  onDurationChange: (duration: string) => void
+  onStartTimeChange: (time: string) => void
+  onEndTimeChange: (time: string) => void
+}) {
+  const numericDuration = Number(duration)
+  const choices = duration && !durationOptions.includes(numericDuration) ? [numericDuration, ...durationOptions].sort((left, right) => left - right) : durationOptions
+  return <fieldset className={`training-duration-input${compact ? ' training-duration-input--compact' : ''}`}><legend>Temps de séance</legend>
+    <div className="training-duration-mode">
+      <label><input type="radio" name={name} checked={mode === 'duration'} onChange={() => onModeChange('duration')} /><span>Durée</span></label>
+      <label><input type="radio" name={name} checked={mode === 'times'} onChange={() => onModeChange('times')} /><span>Début / fin</span></label>
+    </div>
+    {mode === 'duration'
+      ? <label className="training-duration-input__value"><span>Durée</span><select aria-label="Durée de la séance" required={!optional} value={duration} onChange={(event) => onDurationChange(event.target.value)}><option value="">{optional ? 'À compléter plus tard' : 'Choisir'}</option>{choices.map((minutes) => <option value={minutes} key={minutes}>{formatTrainingDuration(minutes)}</option>)}</select></label>
+      : <div className="training-duration-input__times"><label><span>Début</span><input aria-label="Heure de début" type="time" step="900" required={!optional || Boolean(endTime)} value={startTime} onChange={(event) => onStartTimeChange(event.target.value)} /></label><label><span>Fin</span><input aria-label="Heure de fin" type="time" step="900" required={!optional || Boolean(startTime)} value={endTime} onChange={(event) => onEndTimeChange(event.target.value)} /></label></div>}
+  </fieldset>
+}
+
+function selectedDuration(mode: DurationMode, duration: string, startTime: string, endTime: string) {
+  if (mode === 'duration') return duration ? Number(duration) : null
+  if (!startTime && !endTime) return null
+  return trainingDurationBetween(startTime, endTime)
+}
 
 function PainToggle({ name, hasPain, onChange }: { name: string; hasPain: boolean; onChange: (hasPain: boolean) => void }) {
   return <fieldset className="training-pain-toggle"><legend>Douleurs</legend><div className="training-binary-choice">
@@ -333,6 +367,9 @@ function SessionForm({ sessions, onCreated, onFeedback }: { sessions: TrainingSe
   const [activityType, setActivityType] = useState<TrainingActivityType>('bloc_interieur')
   const [crag, setCrag] = useState('')
   const [duration, setDuration] = useState('')
+  const [durationMode, setDurationMode] = useState<DurationMode>('duration')
+  const [startTime, setStartTime] = useState('')
+  const [endTime, setEndTime] = useState('')
   const [effort, setEffort] = useState('')
   const [fingerLoad, setFingerLoad] = useState<FingerLoad>('moyenne')
   const [hasPain, setHasPain] = useState(false)
@@ -342,19 +379,24 @@ function SessionForm({ sessions, onCreated, onFeedback }: { sessions: TrainingSe
   async function submit(event: FormEvent) {
     event.preventDefault()
     await run(async () => {
-      const roundedDuration = roundTrainingDuration(Number(duration))
-      if (roundedDuration === null) return onFeedback({ kind: 'error', text: 'Le temps de séance est invalide.' })
-      const common = { duree_minutes: roundedDuration, effort_percu: Number(effort), contrainte_doigts: fingerLoad, douleur: hasPain ? Number(pain) : 0 }
+      const durationMinutes = selectedDuration(durationMode, duration, startTime, endTime)
+      const canBeIncomplete = activity !== 'autre'
+      if ((!canBeIncomplete || duration || startTime || endTime) && durationMinutes === null) return onFeedback({ kind: 'error', text: 'Le temps de séance est invalide. Renseigne les deux horaires, différents l’un de l’autre.' })
+      if (!canBeIncomplete && !effort) return onFeedback({ kind: 'error', text: 'La durée et la RPE sont obligatoires pour cette activité.' })
+      const common = { duree_minutes: durationMinutes, effort_percu: effort ? Number(effort) : null, contrainte_doigts: fingerLoad, douleur: hasPain ? Number(pain) : 0 }
       const { error } = activity === 'autre'
         ? await supabase!.from('activites_charge').insert({ date_activite: date, type_activite: activityType, ...common })
         : await supabase!.from('seances_entrainement').insert({ date_seance: date, type_lieu: activity, falaise: activity === 'exterieur' ? crag.trim() : null, ...common })
       if (error) return onFeedback({ kind: 'error', text: error.message })
       setCrag('')
       setDuration('')
+      setDurationMode('duration')
+      setStartTime('')
+      setEndTime('')
       setEffort('')
       setHasPain(false)
       setPain('')
-      onFeedback({ kind: 'success', text: roundedDuration === Number(duration) ? 'Séance enregistrée.' : `Séance enregistrée avec un temps arrondi à ${roundedDuration} min.` })
+      onFeedback({ kind: 'success', text: durationMinutes === null || !effort ? 'Séance enregistrée. Tu pourras la compléter à la fin.' : 'Séance enregistrée.' })
       await onCreated()
     })
   }
@@ -364,8 +406,8 @@ function SessionForm({ sessions, onCreated, onFeedback }: { sessions: TrainingSe
     <label className="training-form-field training-form-field--activity"><span>Activité</span><select aria-label="Activité" value={activity} onChange={(event) => setActivity(event.target.value as typeof activity)}><option value="mur">Mur St Pierre</option><option value="exterieur">Extérieur</option><option value="autre">Autres</option></select></label>
     {activity === 'exterieur' && <label className="training-form-field training-form-field--context"><span>Falaise</span><input required maxLength={120} list="training-crags" placeholder="Choisir ou saisir une falaise" value={crag} onChange={(event) => setCrag(event.target.value)} /><datalist id="training-crags">{crags.map((name) => <option value={name} key={name} />)}</datalist></label>}
     {activity === 'autre' && <label className="training-form-field training-form-field--context"><span>Type d’activité</span><select aria-label="Type d’activité" value={activityType} onChange={(event) => setActivityType(event.target.value as TrainingActivityType)}>{simpleActivityTypes.map((value) => <option value={value} key={value}>{activityLabels[value]}</option>)}</select></label>}
-    <label className="training-form-field training-form-field--duration"><span>Temps (min)</span><input type="number" min="1" max="1440" required value={duration} onChange={(event) => setDuration(event.target.value)} /><small>Arrondi au quart d’heure.</small></label>
-    <label className="training-form-field training-form-field--effort"><span>RPE</span><select aria-label="RPE" required value={effort} onChange={(event) => setEffort(event.target.value)}><option value="">Choisir</option>{effortLabels.map((label, index) => <option value={index + 1} key={index + 1}>{index + 1} — {label}</option>)}</select></label>
+    <DurationInput name="duration-mode" mode={durationMode} duration={duration} startTime={startTime} endTime={endTime} optional={activity !== 'autre'} onModeChange={setDurationMode} onDurationChange={setDuration} onStartTimeChange={setStartTime} onEndTimeChange={setEndTime} />
+    <label className="training-form-field training-form-field--effort"><span>RPE</span><select aria-label="RPE" required={activity === 'autre'} value={effort} onChange={(event) => setEffort(event.target.value)}><option value="">{activity === 'autre' ? 'Choisir' : 'À compléter plus tard'}</option>{effortLabels.map((label, index) => <option value={index + 1} key={index + 1}>{index + 1} — {label}</option>)}</select></label>
     <label className="training-form-field training-form-field--fingers"><span>Doigts</span><select aria-label="Doigts" value={fingerLoad} onChange={(event) => setFingerLoad(event.target.value as FingerLoad)}>{Object.entries(fingerLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
     <div className="training-form-pain"><PainToggle name="pain" hasPain={hasPain} onChange={(value) => { setHasPain(value); if (!value) setPain('') }} /></div>
     {hasPain && <label className="training-form-field training-form-field--pain-level"><span>Douleur (1–10)</span><input aria-label="Douleur de 1 à 10" type="number" min="1" max="10" required value={pain} onChange={(event) => setPain(event.target.value)} /></label>}
@@ -407,6 +449,9 @@ function SessionLoad({ session, entries, onChange }: { session: TrainingSession;
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [duration, setDuration] = useState(session.durationMinutes?.toString() ?? '')
+  const [durationMode, setDurationMode] = useState<DurationMode>('duration')
+  const [startTime, setStartTime] = useState('')
+  const [endTime, setEndTime] = useState('')
   const [effort, setEffort] = useState(session.perceivedEffort?.toString() ?? '')
   const [fingerLoad, setFingerLoad] = useState<FingerLoad>(session.fingerLoad ?? 'moyenne')
   const [hasPain, setHasPain] = useState(Boolean(session.pain))
@@ -417,10 +462,11 @@ function SessionLoad({ session, entries, onChange }: { session: TrainingSession;
   useEffect(() => setDuration(session.durationMinutes?.toString() ?? ''), [session.durationMinutes])
   async function save(event: FormEvent) {
     event.preventDefault()
-    const roundedDuration = roundTrainingDuration(Number(duration))
-    if (roundedDuration === null || !effort || (hasPain && !pain)) return
+    const durationMinutes = selectedDuration(durationMode, duration, startTime, endTime)
+    if ((duration || startTime || endTime) && durationMinutes === null) return
+    if (hasPain && !pain) return
     setSaving(true)
-    const saved = await onChange(session.id, { durationMinutes: roundedDuration, perceivedEffort: Number(effort), fingerLoad, pain: hasPain ? Number(pain) : 0 })
+    const saved = await onChange(session.id, { durationMinutes, perceivedEffort: effort ? Number(effort) : null, fingerLoad, pain: hasPain ? Number(pain) : 0 })
     setSaving(false)
     if (!saved) return
     setEditing(false)
@@ -430,11 +476,11 @@ function SessionLoad({ session, entries, onChange }: { session: TrainingSession;
     <div className="session-load__result">
       <span>Charge de séance</span>
       <output>{load === null ? '—' : `${load} UA`}</output>
-      <small>{load === null ? 'Séance à compléter' : `${session.durationMinutes} min × RPE ${session.perceivedEffort}/10`}</small>
+      <small>{load === null ? 'Séance à compléter' : `${formatTrainingDuration(session.durationMinutes!)} × RPE ${session.perceivedEffort}/10`}</small>
     </div>
     <div className="session-load__details"><p>Ressenti et volume</p><div className="training-simple-tags"><span>Doigts {session.fingerLoad ? fingerLabels[session.fingerLoad] : '—'}</span><span className={session.pain ? 'is-pain' : ''}>{painLabel(session.pain)}</span></div><div className="session-load__volume" aria-label="Volume enregistré"><span><strong>{volume.routes}</strong> voie{volume.routes > 1 ? 's' : ''}</span><span><strong>{volume.attempts}</strong> essai{volume.attempts > 1 ? 's' : ''}</span><span><strong>{volume.sends}</strong> enchaînement{volume.sends > 1 ? 's' : ''}</span></div></div>
-    <button className="button button--small session-load__edit" type="button" onClick={() => setEditing((value) => !value)}>{editing ? 'Annuler' : 'Modifier'}</button>
-    {editing && <form className={`training-load-edit${hasPain ? ' training-load-edit--with-pain' : ''}`} onSubmit={save}><label className="training-load-edit__duration"><span>Temps (min)</span><input aria-label="Temps en minutes" type="number" min="1" max="1440" required value={duration} onChange={(event) => setDuration(event.target.value)} /></label><label className="training-load-edit__effort"><span>RPE</span><select aria-label="RPE de la séance" required value={effort} onChange={(event) => setEffort(event.target.value)}><option value="">Choisir</option>{effortLabels.map((label, index) => <option value={index + 1} key={index + 1}>{index + 1} — {label}</option>)}</select></label><label className="training-load-edit__fingers"><span>Doigts</span><select value={fingerLoad} onChange={(event) => setFingerLoad(event.target.value as FingerLoad)}>{Object.entries(fingerLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label><PainToggle name={`edit-pain-${session.id}`} hasPain={hasPain} onChange={(value) => { setHasPain(value); if (!value) setPain('') }} />{hasPain && <label className="training-load-edit__pain-level"><span>Douleur (1–10)</span><input type="number" min="1" max="10" required value={pain} onChange={(event) => setPain(event.target.value)} /></label>}<button className="button button--accent" disabled={saving}>{saving ? 'Enregistrement…' : 'Enregistrer'}</button></form>}
+    <button className="button button--small session-load__edit" type="button" onClick={() => setEditing((value) => !value)}>{editing ? 'Annuler' : 'Modifier ma séance'}</button>
+    {editing && <form className={`training-load-edit${hasPain ? ' training-load-edit--with-pain' : ''}`} onSubmit={save}><DurationInput compact name={`edit-duration-mode-${session.id}`} mode={durationMode} duration={duration} startTime={startTime} endTime={endTime} optional onModeChange={setDurationMode} onDurationChange={setDuration} onStartTimeChange={setStartTime} onEndTimeChange={setEndTime} /><label className="training-load-edit__effort"><span>RPE</span><select aria-label="RPE de la séance" value={effort} onChange={(event) => setEffort(event.target.value)}><option value="">À compléter plus tard</option>{effortLabels.map((label, index) => <option value={index + 1} key={index + 1}>{index + 1} — {label}</option>)}</select></label><label className="training-load-edit__fingers"><span>Doigts</span><select value={fingerLoad} onChange={(event) => setFingerLoad(event.target.value as FingerLoad)}>{Object.entries(fingerLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label><PainToggle name={`edit-pain-${session.id}`} hasPain={hasPain} onChange={(value) => { setHasPain(value); if (!value) setPain('') }} />{hasPain && <label className="training-load-edit__pain-level"><span>Douleur (1–10)</span><input type="number" min="1" max="10" required value={pain} onChange={(event) => setPain(event.target.value)} /></label>}<button className="button button--accent" disabled={saving}>{saving ? 'Enregistrement…' : 'Enregistrer'}</button></form>}
   </section>
 }
 

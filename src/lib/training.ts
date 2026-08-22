@@ -74,6 +74,29 @@ export function roundTrainingDuration(durationMinutes: number) {
   return Math.round(durationMinutes / 15) * 15
 }
 
+export function formatTrainingDuration(durationMinutes: number) {
+  if (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 1440) return null
+  const hours = Math.floor(durationMinutes / 60)
+  const minutes = String(durationMinutes % 60).padStart(2, '0')
+  return `${hours}h${minutes}`
+}
+
+export function trainingDurationBetween(startTime: string, endTime: string) {
+  const parseTime = (value: string) => {
+    const match = /^(\d{2}):(\d{2})$/.exec(value)
+    if (!match) return null
+    const hours = Number(match[1])
+    const minutes = Number(match[2])
+    if (hours > 23 || minutes > 59) return null
+    return hours * 60 + minutes
+  }
+  const start = parseTime(startTime)
+  const end = parseTime(endTime)
+  if (start === null || end === null || start === end) return null
+  const elapsed = end > start ? end - start : 1440 - start + end
+  return roundTrainingDuration(elapsed)
+}
+
 export function medianTrainingLoad(values: number[]) {
   if (values.length === 0 || values.some((value) => !Number.isFinite(value) || value < 0)) return null
   const sorted = [...values].sort((left, right) => left - right)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { allowedAscentStyles, attemptsBeforeEntry, attemptsThroughEntry, attemptsToFirstSend, externalRouteNames, medianTrainingLoad, roundTrainingDuration, sessionTrainingLoad, sessionTrainingVolume, weeklyTrainingLoads } from './training'
+import { allowedAscentStyles, attemptsBeforeEntry, attemptsThroughEntry, attemptsToFirstSend, externalRouteNames, formatTrainingDuration, medianTrainingLoad, roundTrainingDuration, sessionTrainingLoad, sessionTrainingVolume, trainingDurationBetween, weeklyTrainingLoads } from './training'
 import type { TrainingRouteEntry } from '../types'
 
 function entry(overrides: Partial<TrainingRouteEntry>): TrainingRouteEntry {
@@ -86,6 +86,15 @@ describe('charge et volume de séance', () => {
     expect(roundTrainingDuration(82)).toBe(75)
     expect(roundTrainingDuration(83)).toBe(90)
     expect(roundTrainingDuration(0)).toBeNull()
+  })
+
+  it('affiche les minutes en heures et calcule des horaires, y compris après minuit', () => {
+    expect(formatTrainingDuration(60)).toBe('1h00')
+    expect(formatTrainingDuration(75)).toBe('1h15')
+    expect(formatTrainingDuration(0)).toBeNull()
+    expect(trainingDurationBetween('18:00', '19:23')).toBe(90)
+    expect(trainingDurationBetween('23:30', '00:45')).toBe(75)
+    expect(trainingDurationBetween('18:00', '18:00')).toBeNull()
   })
 
   it('calcule un repère médian sans être tiré par une semaine extrême', () => {

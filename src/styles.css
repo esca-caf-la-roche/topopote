@@ -272,9 +272,19 @@ input[type='color'] { padding: 3px; }
 .training-form-field { display: grid; min-width: 0; gap: 7px; align-self: end; }
 .training-form-field > span { font-weight: 900; }
 .training-form-field input, .training-form-field select { width: 100%; min-width: 0; }
-.training-form-field--duration { position: relative; }
-.training-form-field--duration small { position: absolute; top: calc(100% + 4px); left: 0; }
-.training-form-field--date, .training-form-field--activity, .training-form-field--duration { grid-column: span 2; }
+.training-form-field--date, .training-form-field--activity { grid-column: span 2; }
+.training-duration-input { display: grid; grid-column: span 3; min-width: 0; margin: 0; padding: 0; gap: 7px; border: 0; }
+.training-duration-input legend { padding: 0; font-weight: 900; }
+.training-duration-mode { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.training-duration-mode label { position: relative; cursor: pointer; }
+.training-duration-mode input { position: absolute; width: 1px; height: 1px; min-height: 0; clip-path: inset(50%); overflow: hidden; }
+.training-duration-mode span { display: flex; min-height: 32px; align-items: center; justify-content: center; padding: 5px 7px; border: 2px solid var(--ink); background: var(--paper); font-size: .72rem; font-weight: 900; text-align: center; }
+.training-duration-mode input:checked + span { background: var(--blue); box-shadow: 2px 2px 0 var(--ink); }
+.training-duration-mode input:focus-visible + span { outline: 3px solid var(--pink); outline-offset: 2px; }
+.training-duration-input__value, .training-duration-input__times, .training-duration-input__times label { display: grid; min-width: 0; gap: 6px; }
+.training-duration-input__value > span, .training-duration-input__times span { position: absolute; width: 1px; height: 1px; clip-path: inset(50%); overflow: hidden; }
+.training-duration-input__times { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.training-duration-input select, .training-duration-input input { width: 100%; min-width: 0; }
 .training-form-field--effort, .training-form-field--fingers { grid-column: span 3; }
 .training-simple-form--with-context .training-form-field { grid-column: span 2; }
 .training-form-pain { grid-column: span 3; }
@@ -322,7 +332,8 @@ input[type='color'] { padding: 3px; }
 .session-load__edit { align-self: start; background: var(--blue); }
 .training-load-edit { display: grid; grid-column: 1 / -1; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 12px; align-items: end; padding: 14px; border: 2px solid var(--ink); background: var(--paper); }
 .training-load-edit > label { display: grid; min-width: 0; gap: 6px; font-weight: 900; }
-.training-load-edit__duration, .training-load-edit__fingers, .training-load-edit .button { grid-column: span 2; }
+.training-load-edit > .training-duration-input { grid-column: span 4; }
+.training-load-edit__fingers, .training-load-edit .button { grid-column: span 2; }
 .training-load-edit__effort, .training-load-edit > .training-pain-toggle { grid-column: span 3; }
 .training-load-edit--with-pain > label, .training-load-edit--with-pain > .training-pain-toggle, .training-load-edit--with-pain .button { grid-column: span 2; }
 .training-load-edit .button { align-self: end; }
@@ -585,7 +596,7 @@ input[type='color'] { padding: 3px; }
   .auth-card, .ascent-form { padding: 20px; box-shadow: 6px 6px 0 var(--ink); }
   .training-access-denied, .training-session-form, .training-activity-form, .training-load-dashboard { padding: 20px; box-shadow: 6px 6px 0 var(--ink); }
   .training-simple-form { grid-template-columns: 1fr; }
-  .training-form-field, .training-simple-form--with-context .training-form-field, .training-form-pain, .training-simple-form__submit { grid-column: 1; }
+  .training-form-field, .training-simple-form--with-context .training-form-field, .training-duration-input, .training-form-pain, .training-simple-form__submit { grid-column: 1; }
   .training-simple-form__submit { width: 100%; }
   .training-session-card > header { flex-direction: column; }
   .training-session-card > header .admin-actions { width: 100%; }
