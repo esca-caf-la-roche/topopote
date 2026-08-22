@@ -268,27 +268,34 @@ input[type='color'] { padding: 3px; }
 .training-load-dashboard { background: var(--paper); }
 .training-access-denied h2, .training-session-form h2, .training-activity-form h2, .training-load-dashboard h2, .training-log h2, .training-session-card h3 { margin: 0; }
 .training-session-form form { margin-top: 18px; }
-.training-simple-form { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 14px; align-items: end; }
-.training-form-field { display: grid; min-width: 0; gap: 7px; align-self: stretch; align-content: end; }
+.training-simple-form { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: 14px; row-gap: 28px; align-items: end; }
+.training-form-field { display: grid; min-width: 0; gap: 7px; align-self: end; }
 .training-form-field > span { font-weight: 900; }
 .training-form-field input, .training-form-field select { width: 100%; min-width: 0; }
+.training-form-field--duration { position: relative; }
+.training-form-field--duration small { position: absolute; top: calc(100% + 4px); left: 0; }
 .training-form-field--date, .training-form-field--activity, .training-form-field--duration { grid-column: span 2; }
 .training-form-field--effort, .training-form-field--fingers { grid-column: span 3; }
 .training-simple-form--with-context .training-form-field { grid-column: span 2; }
-.training-form-pain { grid-column: span 3; align-self: stretch; }
+.training-form-pain { grid-column: span 3; }
 .training-form-field--pain-level { grid-column: span 2; }
 .training-simple-form__submit { grid-column: span 3; justify-self: start; }
-.training-simple-form fieldset, .training-load-edit fieldset { margin: 0; padding: 11px 12px; border: 2px solid var(--ink); background: var(--paper); }
-.training-simple-form legend, .training-load-edit legend { padding: 0 5px; font-weight: 900; }
+.training-pain-toggle { min-width: 0; margin: 0; padding: 0; border: 0; }
+.training-pain-toggle legend { margin-bottom: 7px; padding: 0; font-weight: 900; }
 .training-simple-form small { font-size: .7rem; font-weight: 800; }
-.training-binary-choice { display: flex; gap: 18px; align-items: center; min-height: 38px; }
-.training-binary-choice label { display: flex; gap: 7px; align-items: center; font-weight: 900; }
+.training-binary-choice { display: grid; height: 46px; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.training-binary-choice label { position: relative; display: block; min-width: 0; height: 46px; cursor: pointer; }
+.training-binary-choice input { position: absolute; width: 1px; height: 1px; min-height: 0; margin: 0; clip-path: inset(50%); overflow: hidden; }
+.training-binary-choice span { display: flex; height: 46px; align-items: center; justify-content: center; padding: 8px 10px; border: 2px solid var(--ink); background: var(--paper); box-shadow: 3px 3px 0 var(--ink); font-weight: 900; }
+.training-binary-choice input:checked + span { transform: translate(2px, 2px); background: var(--blue); box-shadow: 1px 1px 0 var(--ink); }
+.training-binary-choice input:checked + span::before { content: '✓'; margin-right: 5px; }
+.training-binary-choice input:focus-visible + span { outline: 4px solid var(--pink); outline-offset: 3px; }
 .training-help-button { display: grid; width: 42px; height: 42px; place-items: center; padding: 0; border: 3px solid var(--ink); border-radius: 50%; background: var(--yellow); box-shadow: 3px 3px 0 var(--ink); font-family: 'Archivo Black', sans-serif; font-size: 1.3rem; }
 .training-session-list { display: grid; gap: 24px; margin-top: 20px; }
 .training-session-card { border: var(--border); background: var(--paper); box-shadow: 7px 7px 0 var(--ink); }
 .training-session-card > header { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; padding: 20px; border-bottom: var(--border); background: var(--blue); }
 .training-session-card > header p:last-child { margin-bottom: 0; }
-.session-load { display: grid; grid-template-columns: minmax(150px, .6fr) minmax(0, 2fr); gap: 14px; padding: 16px 20px; border-bottom: var(--border); background: #ffd8f6; }
+.session-load { display: grid; grid-template-columns: minmax(230px, .72fr) minmax(0, 1.45fr) auto; gap: 14px; align-items: stretch; padding: 18px 20px; border-bottom: var(--border); background: #ffd8f6; }
 .session-load__result { display: flex; flex-direction: column; justify-content: center; padding: 14px; border: 2px solid var(--ink); background: var(--yellow); }
 .session-load__result > span { font-size: .75rem; font-weight: 900; text-transform: uppercase; }
 .session-load__result output { font-family: 'Archivo Black', sans-serif; font-size: 2.8rem; line-height: 1; }
@@ -304,14 +311,20 @@ input[type='color'] { padding: 3px; }
 .effort-choices button span { overflow-wrap: anywhere; font-size: .58rem; font-weight: 800; }
 .effort-choices button.is-active { background: var(--blue); }
 .effort-choices button:focus-visible { outline: 3px solid var(--pink); outline-offset: 2px; }
-.session-load__volume { display: flex; grid-column: 1 / -1; gap: 8px; flex-wrap: wrap; }
-.session-load__volume span { padding: 6px 9px; border: 2px solid var(--ink); background: var(--paper); font-size: .72rem; font-weight: 800; }
+.session-load__details { display: grid; min-width: 0; align-content: space-between; gap: 12px; padding: 12px; border: 2px solid var(--ink); background: rgb(255 253 247 / 60%); }
+.session-load__details > p { margin: 0; font-size: .72rem; font-weight: 900; letter-spacing: .05em; text-transform: uppercase; }
+.session-load__volume { display: flex; gap: 8px; flex-wrap: wrap; }
+.session-load__volume span { min-width: 88px; padding: 7px 10px; border: 2px solid var(--ink); background: var(--paper); font-size: .72rem; font-weight: 800; }
+.session-load__volume strong { margin-right: 3px; font-family: 'Archivo Black', sans-serif; font-size: 1.15rem; }
 .training-simple-tags { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.training-simple-tags span, .training-simple-tags button { padding: 6px 9px; border: 2px solid var(--ink); background: var(--paper); font-size: .72rem; font-weight: 900; }
+.training-simple-tags span { padding: 6px 9px; border: 2px solid var(--ink); background: var(--paper); font-size: .72rem; font-weight: 900; }
 .training-simple-tags .is-pain { background: #ff8b8b; }
-.training-simple-tags button { margin-left: auto; cursor: pointer; }
-.training-load-edit { display: grid; grid-column: 1 / -1; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; padding: 14px; border: 2px solid var(--ink); background: var(--paper); }
-.training-load-edit > label { display: grid; gap: 6px; font-weight: 900; }
+.session-load__edit { align-self: start; background: var(--blue); }
+.training-load-edit { display: grid; grid-column: 1 / -1; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 12px; align-items: end; padding: 14px; border: 2px solid var(--ink); background: var(--paper); }
+.training-load-edit > label { display: grid; min-width: 0; gap: 6px; font-weight: 900; }
+.training-load-edit__duration, .training-load-edit__fingers, .training-load-edit .button { grid-column: span 2; }
+.training-load-edit__effort, .training-load-edit > .training-pain-toggle { grid-column: span 3; }
+.training-load-edit--with-pain > label, .training-load-edit--with-pain > .training-pain-toggle, .training-load-edit--with-pain .button { grid-column: span 2; }
 .training-load-edit .button { align-self: end; }
 .session-load__legacy { display: flex; grid-column: 1 / -1; gap: 8px 14px; align-items: center; flex-wrap: wrap; padding-top: 3px; font-size: .72rem; }
 .session-load__legacy strong { text-transform: uppercase; }
@@ -515,6 +528,12 @@ input[type='color'] { padding: 3px; }
 .opener-comments ul { display: grid; gap: 8px; margin: 0; padding: 14px 14px 14px 36px; border-top: 2px solid var(--ink); }
 .opener-comments li { padding: 10px; background: #f7f1e5; }
 
+@media (max-width: 980px) {
+  .training-load-edit { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .training-load-edit > label, .training-load-edit > .training-pain-toggle, .training-load-edit .button, .training-load-edit--with-pain > label, .training-load-edit--with-pain > .training-pain-toggle, .training-load-edit--with-pain .button { grid-column: span 1; }
+  .training-load-edit .button { grid-column: 1 / -1; }
+}
+
 
 @media (max-width: 780px) {
   .site-shell { width: min(100% - 20px, 1180px); padding-top: 10px; }
@@ -572,7 +591,9 @@ input[type='color'] { padding: 3px; }
   .training-session-card > header .admin-actions { width: 100%; }
   .training-session-card > header .training-icon-action { width: 46px; height: 46px; flex-basis: 46px; }
   .session-load, .session-load__inputs, .session-load__context { grid-template-columns: 1fr; padding: 14px; }
+  .session-load__edit { width: 100%; }
   .training-load-edit { grid-template-columns: 1fr; }
+  .training-load-edit > label, .training-load-edit > .training-pain-toggle, .training-load-edit .button, .training-load-edit--with-pain > label, .training-load-edit--with-pain > .training-pain-toggle, .training-load-edit--with-pain .button { grid-column: 1; }
   .session-load__inputs { padding: 0; }
   .session-load__context { padding: 0; }
   .training-activity-card { grid-template-columns: minmax(0, 1fr) auto; }
