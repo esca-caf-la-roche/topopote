@@ -443,7 +443,9 @@ function SessionCard({ session, entries, allEntries, routes, grades, ascentIdsBy
   onFeedback: (feedback: Feedback) => void
 }) {
   const [adding, setAdding] = useState(() => Boolean(readTrainingRouteDraft(session.id)))
+  const [expanded, setExpanded] = useState(adding)
   const { pending, run } = usePendingAction()
+  const routesRegionId = `training-session-routes-${session.id}`
   async function remove() {
     if (!window.confirm(`Supprimer la séance du ${formatDate(session.date)} et toutes ses voies ?`)) return
     await run(async () => {
@@ -453,10 +455,12 @@ function SessionCard({ session, entries, allEntries, routes, grades, ascentIdsBy
       await onChanged()
     })
   }
-  return <article className="training-session-card"><header><div><p className="section-kicker">{session.location === 'mur' ? '🧗 Mur' : '🏔️ Extérieur'}</p><h3>{formatDate(session.date)}</h3><p>{session.location === 'mur' ? 'Mur de Saint-Pierre-en-Faucigny' : session.crag}</p></div><div className="admin-actions"><button className="training-icon-action training-icon-action--accent" type="button" aria-label={adding ? 'Fermer le formulaire de voie' : 'Ajouter une voie'} title={adding ? 'Fermer' : 'Ajouter une voie'} onClick={() => setAdding((current) => !current)}>{adding ? '❌' : '➕'}</button><button className="training-icon-action training-icon-action--danger" type="button" aria-label="Supprimer la séance" title="Supprimer la séance" disabled={pending} onClick={() => void remove()}>{pending ? '…' : '🗑️'}</button></div></header>
+  return <article className="training-session-card"><header><div><p className="section-kicker">{session.location === 'mur' ? '🧗 Mur' : '🏔️ Extérieur'}</p><h3>{formatDate(session.date)}</h3><p>{session.location === 'mur' ? 'Mur de Saint-Pierre-en-Faucigny' : session.crag}</p></div><div className="admin-actions"><button className="training-icon-action" type="button" aria-label={expanded ? `Replier la séance (${entries.length} voie${entries.length > 1 ? 's' : ''})` : `Déplier la séance (${entries.length} voie${entries.length > 1 ? 's' : ''})`} title={expanded ? 'Replier la séance' : 'Déplier la séance'} aria-expanded={expanded} aria-controls={routesRegionId} onClick={() => setExpanded((current) => !current)}>{expanded ? '🔼' : '🔽'}</button><button className="training-icon-action training-icon-action--accent" type="button" aria-label={adding ? 'Fermer le formulaire de voie' : 'Ajouter une voie'} title={adding ? 'Fermer' : 'Ajouter une voie'} onClick={() => { setAdding((current) => !current); setExpanded(true) }}>{adding ? '❌' : '➕'}</button><button className="training-icon-action training-icon-action--danger" type="button" aria-label="Supprimer la séance" title="Supprimer la séance" disabled={pending} onClick={() => void remove()}>{pending ? '…' : '🗑️'}</button></div></header>
     <SessionLoad session={session} entries={entries} onChange={onLoadChanged} />
-    {adding && <TrainingRouteForm session={session} entries={allEntries} routes={routes} grades={grades} existingSessionEntries={entries} ascentIdsByRoute={ascentIdsByRoute} onCreated={async (entry) => { setAdding(false); await onChanged(); if (entry.sent && entry.routeId && !ascentIdsByRoute[entry.routeId]) onOpenAscent(entry, entry.style) }} onFeedback={onFeedback} />}
-    {entries.length === 0 ? <p className="empty-state">Aucune voie dans cette séance.</p> : <div className="training-route-list">{entries.map((entry) => <TrainingRouteRow key={entry.id} entry={entry} sessionEntries={entries} allEntries={allEntries} routes={routes} grades={grades} ascentExists={Boolean(entry.routeId && ascentIdsByRoute[entry.routeId])} onOpenAscent={onOpenAscent} onChanged={onChanged} onFeedback={onFeedback} />)}</div>}
+    {expanded && <div id={routesRegionId} className="training-session-card__routes">
+      {adding && <TrainingRouteForm session={session} entries={allEntries} routes={routes} grades={grades} existingSessionEntries={entries} ascentIdsByRoute={ascentIdsByRoute} onCreated={async (entry) => { setAdding(false); await onChanged(); if (entry.sent && entry.routeId && !ascentIdsByRoute[entry.routeId]) onOpenAscent(entry, entry.style) }} onFeedback={onFeedback} />}
+      {entries.length === 0 ? <p className="empty-state">Aucune voie dans cette séance.</p> : <div className="training-route-list">{entries.map((entry) => <TrainingRouteRow key={entry.id} entry={entry} sessionEntries={entries} allEntries={allEntries} routes={routes} grades={grades} ascentExists={Boolean(entry.routeId && ascentIdsByRoute[entry.routeId])} onOpenAscent={onOpenAscent} onChanged={onChanged} onFeedback={onFeedback} />)}</div>}
+    </div>}
   </article>
 }
 

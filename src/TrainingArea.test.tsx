@@ -147,13 +147,18 @@ describe('TrainingArea', () => {
     from.mockImplementation((table: string) => queryResult(table === 'seances_entrainement' ? sessions : table === 'voies_seance' ? entries : []))
     render(<TrainingArea user={{ id: 'user-1' } as never} isAdmin={false} isOpener={false} sharesActivity={false} hasTrainingAccess authLoading={false} routes={[]} grades={[{ id: 'grade-1', label: '6b', rank: 1, points: 100, difficulty: 'Modéré' }]} onSignOut={async () => undefined} />)
 
-    const comment = await screen.findByText('Très belle voie.')
-    const currentSession = screen.getByText('18/08/2026').closest('article')!
+    const currentSession = (await screen.findByText('18/08/2026')).closest('article')!
     expect(within(currentSession).getByText('420 UA')).toBeTruthy()
     expect(within(currentSession).getByText('1h00 × RPE 7/10')).toBeTruthy()
     expect(within(currentSession).queryByText(/Doigts/)).toBeNull()
     expect(within(currentSession).getByLabelText('Volume enregistré').textContent).toContain('2 essais')
     expect(within(currentSession).getByLabelText('Volume enregistré').textContent).toContain('1 enchaînement')
+    const expandButton = within(currentSession).getByRole('button', { name: 'Déplier la séance (1 voie)' })
+    expect(expandButton.getAttribute('aria-expanded')).toBe('false')
+    expect(within(currentSession).queryByText('Très belle voie.')).toBeNull()
+    fireEvent.click(expandButton)
+    expect(within(currentSession).getByRole('button', { name: 'Replier la séance (1 voie)' }).getAttribute('aria-expanded')).toBe('true')
+    const comment = within(currentSession).getByText('Très belle voie.')
     fireEvent.click(within(currentSession).getByRole('button', { name: 'Modifier ma séance' }))
     const editPainGroup = within(currentSession).getByRole('group', { name: 'Douleurs' })
     fireEvent.click(within(editPainGroup).getByRole('radio', { name: 'Oui' }))
