@@ -14,6 +14,28 @@ const rpeExamples = [
   ['10 — Maximum exceptionnel', 'Maximum physique et mental de la séance entière ; cette note doit rester rare.'],
 ]
 
+const disciplineExamples = [
+  ['Bloc', '4–5 : blocs faciles et propres. 6–7 : vrai bloc max, peu de problèmes et longs repos. 8–9 : nombreux essais durs ou baisse de performance.'],
+  ['Voie en salle', '4–5 : volume facile, peu de pompe. 6–7 : voies proches du niveau avec fatigue maîtrisée. 8–9 : résistance, nombreux runs durs ou congestion prolongée.'],
+  ['Falaise', 'Deux runs très durs et bien espacés peuvent rester à 6–7. Une longue journée, six runs de projet, l’approche et la météo peuvent amener à 8–9.'],
+  ['Poutre', '3–4 : reprise très sous-maximale. 5–6 : protocole complet et confortable. 7–8 : charges élevées avec petite marge. 9 : tests maximaux ou fatigue neuromusculaire importante.'],
+  ['Renforcement', '4–5 : correctifs ou antagonistes avec grande réserve. 6–7 : charges sérieuses, 1 à 3 répétitions en réserve. 8–9 : travail lourd proche de l’échec.'],
+  ['Technique et volume', 'Une séance technique peut être utile à 3–5. Un gros volume propre arrêté avant la dégradation se situe souvent à 6–7.'],
+]
+
+const rpeChoices = [
+  ['6 ou 7 ?', 'À 6, tu pouvais encore ajouter une quantité significative de travail propre. À 7, seulement un peu.'],
+  ['7 ou 8 ?', 'À 7, la séance reste nettement maîtrisée. À 8, il ne reste presque plus de travail utile possible.'],
+  ['8 ou 9 ?', 'À 8, la séance est très dure mais ponctuellement reproductible. À 9, elle frôle ta capacité maximale du jour.'],
+  ['9 ou 10 ?', '10 correspond au maximum exceptionnel de toute la séance, pas à un seul mouvement tenté très fort.'],
+]
+
+const fingerExamples = [
+  ['Faible', 'Technique facile, grosses prises, dalle ou renforcement général.'],
+  ['Moyenne', 'Volume varié, prises confortables et quelques efforts soutenus.'],
+  ['Forte', 'Bloc max, arquée, petites prises, bi-doigts, poutre lourde ou nombreux runs de projet.'],
+]
+
 export default function TrainingLoadTutorial({ onClose }: { onClose: () => void }) {
   const dialogRef = useRef<HTMLElement>(null)
 
@@ -54,9 +76,15 @@ export default function TrainingLoadTutorial({ onClose }: { onClose: () => void 
 
       <section><h3>2. Quel temps noter ?</h3><p><strong>Garde toujours la même règle.</strong> Compte l’échauffement, la grimpe ou les exercices et les repos prévus. Retire le trajet, les discussions et l’attente sans rapport. Pour l’approche en falaise, choisis une fois pour toutes de l’inclure ou de la noter séparément.</p></section>
 
-      <section><h3>3. Choisir la RPE</h3><p className="training-tutorial__question">À quel point toute la séance a-t-elle été difficile ?</p><p>Note la séance entière, pas le crux ou le dernier essai. Les valeurs 2, 4, 6, 8 et 10 sont les repères rapides ; utilise les valeurs impaires si tu es entre deux.</p><dl className="training-tutorial__rpe">{rpeExamples.map(([title, example]) => <div key={title}><dt>{title}</dt><dd>{example}</dd></div>)}</dl></section>
+      <section><h3>3. Choisir la RPE</h3><p className="training-tutorial__question">À quel point toute la séance a-t-elle été difficile ?</p><p>Réponds idéalement 15 à 30 minutes après la séance, toujours avec un délai similaire. Note toute la séance, pas le crux, la pompe maximale ou le dernier essai. Les valeurs impaires servent à te placer entre deux repères.</p><dl className="training-tutorial__rpe">{rpeExamples.map(([title, example]) => <div key={title}><dt>{title}</dt><dd>{example}</dd></div>)}</dl></section>
 
-      <section><h3>4. Doigts et douleur</h3><p>La charge des doigts est notée séparément : faible, moyenne ou forte. Si tu as mal, indique une intensité de 1 à 10.</p><p>Observe au moins 4 semaines complètes avant de comparer tes semaines à ta propre habitude. Il n’existe pas de valeur idéale universelle.</p><p className="training-tutorial__warning">Une douleur persistante, croissante ou qui modifie le geste passe avant le score. Demande un avis professionnel si nécessaire.</p></section>
+      <section><h3>4. Repères selon ta séance</h3><div className="training-tutorial__disciplines">{disciplineExamples.map(([title, example]) => <article key={title}><h4>{title}</h4><p>{example}</p></article>)}</div></section>
+
+      <section><h3>5. Si tu hésites entre deux notes</h3><dl className="training-tutorial__choices">{rpeChoices.map(([title, explanation]) => <div key={title}><dt>{title}</dt><dd>{explanation}</dd></div>)}</dl></section>
+
+      <section><h3>6. Choisir la contrainte des doigts</h3><p>Cette note décrit la sollicitation locale des doigts, indépendamment de la RPE globale. Deux séances à charge identique peuvent être très différentes pour les doigts.</p><dl className="training-tutorial__fingers">{fingerExamples.map(([title, example]) => <div key={title}><dt>{title}</dt><dd>{example}</dd></div>)}</dl><p><strong>Exemple :</strong> une séance courte de bloc max peut avoir une RPE 6 mais une contrainte doigts forte. Une longue séance de technique sur grosses prises peut avoir une RPE 6 et une contrainte faible.</p></section>
+
+      <section><h3>7. Douleur et historique</h3><p>Si tu as mal, indique une intensité de 1 à 10. Observe au moins 4 semaines complètes avant de comparer tes semaines à ta propre habitude : il n’existe pas de valeur idéale universelle.</p><p className="training-tutorial__warning">Une douleur persistante, croissante ou qui modifie le geste passe avant le score. Réduis la sollicitation concernée et demande un avis professionnel si nécessaire.</p></section>
       <button className="button button--accent training-tutorial__done" type="button" onClick={onClose}>J’ai compris</button>
     </section>
   </div>, document.body)
