@@ -355,11 +355,17 @@ input[type='color'] { padding: 3px; }
 .weekly-load__headline div { display: grid; }
 .weekly-load__headline output { font-family: 'Archivo Black', sans-serif; font-size: 2.8rem; line-height: 1; }
 .weekly-load__headline > strong { color: #7b1515; }
-.weekly-load__chart { display: flex; min-height: 190px; gap: 10px; align-items: end; margin-top: 16px; padding: 14px; overflow-x: auto; border: 2px solid var(--ink); background: var(--blue); }
-.weekly-load__week { display: grid; min-width: 70px; justify-items: center; gap: 3px; }
-.weekly-load__bar { display: flex; width: 34px; height: 110px; align-items: end; border: 2px solid var(--ink); background: var(--paper); }
-.weekly-load__bar span { display: block; width: 100%; background: var(--pink); }
+.weekly-load__chart { display: flex; min-height: 250px; gap: 12px; align-items: end; margin-top: 16px; padding: 14px; overflow-x: auto; border: 2px solid var(--ink); background: var(--blue); }
+.weekly-load__week { display: grid; min-width: 78px; justify-items: center; gap: 3px; }
+.weekly-load__bar { display: flex; width: 64px; height: 170px; align-items: end; border: 2px solid var(--ink); background: var(--paper); }
+.weekly-load__stack { display: flex; width: 100%; flex-direction: column-reverse; }
+.weekly-load__segment { position: relative; display: flex; min-height: 0; flex-basis: 0; align-items: center; justify-content: flex-start; overflow: visible; padding-left: 5px; background: var(--pink); box-shadow: inset 0 2px 0 var(--ink); }
+.weekly-load__segment:nth-child(even) { background: #ff9ee0; }
+.weekly-load__day { overflow: hidden; font-size: .64rem; font-weight: 900; line-height: 1; text-overflow: clip; }
 .weekly-load__week small, .weekly-load__week em { font-size: .64rem; }
+.weekly-load__pain { position: absolute; top: 50%; right: 3px; display: grid; width: 19px; height: 19px; place-items: center; transform: translateY(-50%); border: 2px solid var(--ink); border-radius: 50%; background: #e71d36; color: #fff; font-size: .65rem; font-style: normal; font-weight: 900; line-height: 1; }
+.weekly-load__pending-days { display: flex; max-width: 78px; flex-wrap: wrap; justify-content: center; gap: 3px; }
+.weekly-load__pending-days span { padding: 1px 4px; border: 1px dashed var(--ink); background: var(--paper); font-size: .6rem; font-weight: 900; }
 .weekly-load__calibration, .training-load-dashboard__limit { padding: 12px; border: 2px solid var(--ink); }
 .training-load-dashboard__limit { background: #ffd8f6; }
 .training-tutorial { width: min(980px, 100%); padding: 28px; }

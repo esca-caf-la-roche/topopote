@@ -117,6 +117,10 @@ function formatDate(value: string) {
   return new Intl.DateTimeFormat('fr-FR').format(new Date(`${value}T12:00:00`))
 }
 
+function formatWeekday(value: string, format: 'short' | 'long') {
+  return new Intl.DateTimeFormat('fr-FR', { weekday: format }).format(new Date(`${value}T12:00:00`)).replace('.', '')
+}
+
 export default function TrainingArea({ user, isAdmin, isOpener, sharesActivity, hasTrainingAccess, authLoading, routes, grades, onSignOut }: {
   user: User | null
   isAdmin: boolean
@@ -343,7 +347,15 @@ function WeeklyLoadSummary({ sessions, activities, onOpenTutorial }: { sessions:
     <p>Temps × RPE, du lundi au dimanche.</p>
     {weeks.length === 0 ? <p className="empty-state">Ajoute une séance ou une activité pour commencer ton suivi.</p> : <>
       <div className="weekly-load__headline"><div><span>{latest?.weekStart === currentWeek ? 'Cette semaine · en cours' : 'Dernière semaine enregistrée'}</span><output>{latest?.totalLoad ?? 0} UA</output></div>{latest && latest.incompleteCount > 0 && <strong>{latest.incompleteCount} activité{latest.incompleteCount > 1 ? 's' : ''} à compléter · total partiel</strong>}</div>
-      <div className="weekly-load__chart" aria-label="Historique des charges hebdomadaires">{weeks.slice(0, 8).reverse().map((week) => <div className="weekly-load__week" key={week.weekStart}><div className="weekly-load__bar"><span style={{ height: `${Math.max(4, (week.totalLoad / maxLoad) * 100)}%` }} /></div><strong>{week.totalLoad}</strong><small>{formatDate(week.weekStart)}</small>{week.incompleteCount > 0 && <em>partiel</em>}</div>)}</div>
+      <div className="weekly-load__chart" aria-label="Historique des charges hebdomadaires">{weeks.slice(0, 8).reverse().map((week) => {
+        const weekRecords = records
+          .filter((record) => weeklyTrainingLoads([record])[0]?.weekStart === week.weekStart)
+          .map((record) => ({ record, load: sessionTrainingLoad(record.durationMinutes, record.perceivedEffort) }))
+          .sort((left, right) => left.record.date.localeCompare(right.record.date) || left.record.createdAt.localeCompare(right.record.createdAt))
+        const completeRecords = weekRecords.filter((entry): entry is typeof entry & { load: number } => entry.load !== null)
+        const incompleteRecords = weekRecords.filter((entry) => entry.load === null)
+        return <div className="weekly-load__week" key={week.weekStart} aria-label={`Semaine du ${formatDate(week.weekStart)} : ${week.totalLoad} UA`}><div className="weekly-load__bar"><div className="weekly-load__stack" style={{ height: `${(week.totalLoad / maxLoad) * 100}%` }}>{completeRecords.map(({ record, load }) => <div className="weekly-load__segment" style={{ flexGrow: load }} key={record.id} aria-label={`${formatWeekday(record.date, 'long')} ${formatDate(record.date)} : ${load} UA${record.pain ? `, douleur ${record.pain} sur 10` : ''}`} title={`${formatWeekday(record.date, 'long')} · ${load} UA${record.pain ? ` · douleur ${record.pain}/10` : ''}`}><span className="weekly-load__day">{formatWeekday(record.date, 'short')}</span>{record.pain ? <span className="weekly-load__pain" aria-label={`Douleur ${record.pain} sur 10`}>{record.pain}</span> : null}</div>)}</div></div><strong>{week.totalLoad}</strong><small>{formatDate(week.weekStart)}</small>{incompleteRecords.length > 0 && <div className="weekly-load__pending-days" aria-label="Séances à compléter">{incompleteRecords.map(({ record }) => <span key={record.id}>{formatWeekday(record.date, 'short')} ?</span>)}</div>}{week.incompleteCount > 0 && <em>partiel</em>}</div>
+      })}</div>
       {observedPastWeeks.length < 4 ? <p className="weekly-load__calibration"><strong>Repère en cours :</strong> {observedPastWeeks.length}/4 semaines complètes sans douleur déclarée.</p> : <p className="weekly-load__calibration"><strong>Ton repère habituel : environ {personalReference} UA/semaine.</strong> Compare-toi à ta propre habitude, pas aux autres.</p>}
     </>}
     <p className="training-load-dashboard__limit">La douleur passe toujours avant le score.</p>
