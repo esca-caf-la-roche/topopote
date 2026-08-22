@@ -2,17 +2,16 @@ import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 
 const rpeExamples = [
-  ['0 — Aucun effort', 'Repos ou mobilité passive, sans difficulté perceptible.'],
-  ['1 — Très facile', 'Mobilité douce ou récupération active ; aucune fatigue notable.'],
-  ['2 — Facile', 'Grimpe très en dessous de ton niveau, avec une très grande marge.'],
-  ['3 — Modérée', 'Endurance confortable ; légère fatigue, séance facile à répéter.'],
-  ['4 — Assez difficile', 'Volume soutenu mais très contrôlé ; tu gardes une bonne marge.'],
-  ['5 — Difficile', 'Travail régulier et exigeant ; fatigue nette, sans approcher ta limite.'],
-  ['6 — Exigeante', 'Séance difficile mais gérable, avec une technique qui reste propre.'],
-  ['7 — Très difficile', 'Plusieurs essais ou voies durs ; forte sollicitation, récupération importante.'],
-  ['8 — Très difficile +', 'Projet, bloc max ou rési très exigeants ; les efforts durs s’accumulent.'],
-  ['9 — Quasi maximale', 'Compétition ou séance exceptionnelle, proche de ta limite sur l’ensemble.'],
-  ['10 — Maximale', 'La séance entière a été aussi dure que possible ; tu n’aurais rien pu ajouter. Cette note doit rester rare.'],
+  ['1 — Quasiment aucun effort', 'Mobilité douce ou suspensions pieds au sol, très loin de l’échec.'],
+  ['2 — Très facile', 'Grimpe très facile avec beaucoup de repos ; tu pourrais recommencer immédiatement.'],
+  ['3 — Facile', 'Échauffement prolongé, voies ou blocs faciles, avec une grande réserve.'],
+  ['4 — Facile à modérée', 'Volume court et maîtrisé, technique propre, jamais proche de la pompe.'],
+  ['5 — Modérée', 'Bloc sous-maximal ou voies sous ton maximum, avec beaucoup de marge restante.'],
+  ['6 — Difficile mais maîtrisée', 'Efforts sérieux et propres ; tu aurais encore pu faire du travail utile.'],
+  ['7 — Difficile et productive', 'Séance complète ou runs exigeants, avec une petite marge.'],
+  ['8 — Très difficile', 'Les efforts durs s’accumulent et il reste très peu de travail utile possible.'],
+  ['9 — Extrêmement difficile', 'Séance proche de ta limite du jour, demandant une récupération inhabituelle.'],
+  ['10 — Maximum exceptionnel', 'Maximum physique et mental de la séance entière ; cette note doit rester rare.'],
 ]
 
 export default function TrainingLoadTutorial({ onClose }: { onClose: () => void }) {
@@ -48,16 +47,16 @@ export default function TrainingLoadTutorial({ onClose }: { onClose: () => void 
   return createPortal(<div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
     <section ref={dialogRef} className="modal training-tutorial" role="dialog" aria-modal="true" aria-labelledby="training-load-tutorial-title" aria-describedby="training-load-tutorial-intro" tabIndex={-1}>
       <button data-initial-focus className="modal__close" type="button" aria-label="Fermer le tutoriel" onClick={onClose}>×</button>
-      <header><p className="section-kicker">Mode d’emploi</p><h2 id="training-load-tutorial-title">Comprendre ta charge d’entraînement</h2></header>
-      <p id="training-load-tutorial-intro">Topopote calcule une charge interne : un thermomètre personnel de la difficulté vécue. Il sert à comparer tes propres semaines avec la même méthode. Il ne mesure pas précisément la contrainte sur les doigts et ne prédit pas une blessure.</p>
+      <header><p className="section-kicker">Guide simple</p><h2 id="training-load-tutorial-title">La charge, simplement</h2></header>
+      <p id="training-load-tutorial-intro">Ce score sert à comparer tes propres semaines avec la même méthode. Il ne mesure pas précisément les contraintes sur les doigts et ne prédit pas une blessure.</p>
 
-      <section><h3>1. Le calcul</h3><p className="training-tutorial__formula"><strong>Charge de séance = durée de pratique (min) × RPE globale (0–10)</strong><br />Exemple : 90 min × RPE 8 = 720 UA. Les unités arbitraires ne sont ni « bonnes » ni « mauvaises » toutes seules.</p></section>
+      <section><h3>1. Le calcul</h3><p className="training-tutorial__formula"><strong>Charge = temps (min) × RPE (1–10)</strong><br />Exemple : 90 min × RPE 8 = 720 UA. Arrondis le temps au quart d’heure le plus proche ; sous 15 minutes, garde le temps réel.</p></section>
 
-      <section><h3>2. Quelle durée noter ?</h3><p><strong>Utilise toujours la même convention, en intérieur comme en extérieur.</strong></p><p>Compte du début de l’échauffement spécifique au dernier essai. Inclus les repos normaux, l’assurage et les rotations habituelles. Retire le trajet, la marche d’approche, le repas et les longues coupures sans pratique.</p><ul><li><strong>Intérieur :</strong> échauffement à 18 h, dernier essai à 20 h → 120 min.</li><li><strong>Extérieur :</strong> pratique de 10 h à 16 h avec 1 h de repas → 300 min. L’approche n’est pas comptée.</li></ul><p>Ne chronomètre pas seulement le temps sur le mur : ce serait difficile à reproduire.</p></section>
+      <section><h3>2. Quel temps noter ?</h3><p><strong>Garde toujours la même règle.</strong> Compte l’échauffement, la grimpe ou les exercices et les repos prévus. Retire le trajet, les discussions et l’attente sans rapport. Pour l’approche en falaise, choisis une fois pour toutes de l’inclure ou de la noter séparément.</p></section>
 
-      <section><h3>3. Comment choisir la RPE ?</h3><p className="training-tutorial__question">À quel point la séance entière a-t-elle été difficile ?</p><p>Réponds idéalement 15 à 30 minutes après, toujours avec le même délai. Note toute la séance, pas seulement les avant-bras, le crux ou les dernières minutes.</p><dl className="training-tutorial__rpe">{rpeExamples.map(([title, example]) => <div key={title}><dt>{title}</dt><dd>{example}</dd></div>)}</dl><p>Ces exemples sont des repères, pas des règles : la RPE décrit ton vécu global.</p></section>
+      <section><h3>3. Choisir la RPE</h3><p className="training-tutorial__question">À quel point toute la séance a-t-elle été difficile ?</p><p>Note la séance entière, pas le crux ou le dernier essai. Les valeurs 2, 4, 6, 8 et 10 sont les repères rapides ; utilise les valeurs impaires si tu es entre deux.</p><dl className="training-tutorial__rpe">{rpeExamples.map(([title, example]) => <div key={title}><dt>{title}</dt><dd>{example}</dd></div>)}</dl></section>
 
-      <section><h3>4. Donner du sens au score</h3><ul><li>Enregistre la contrainte dominante : bloc max, voie rési, volume facile, poutre, arquée, bi-doigts…</li><li>Croise la charge avec les signaux déclarés : récupération, douleur, stress et performance.</li><li>Ajoute toutes tes activités physiques pour que le total hebdomadaire soit complet.</li><li>Observe au moins 4 semaines ; 8 à 12 donnent une base plus solide.</li></ul><p><strong>Il n’existe pas de seuil universel :</strong> les repères 3 000–6 000 UA ou +10 % ne sont pas des normes scientifiques.</p><p className="training-tutorial__warning">Une douleur persistante, croissante ou qui modifie le geste ne se résume pas à ce score. Demande un avis professionnel si nécessaire.</p></section>
+      <section><h3>4. Doigts et douleur</h3><p>La charge des doigts est notée séparément : faible, moyenne ou forte. Si tu as mal, indique une intensité de 1 à 10.</p><p>Observe au moins 4 semaines complètes avant de comparer tes semaines à ta propre habitude. Il n’existe pas de valeur idéale universelle.</p><p className="training-tutorial__warning">Une douleur persistante, croissante ou qui modifie le geste passe avant le score. Demande un avis professionnel si nécessaire.</p></section>
       <button className="button button--accent training-tutorial__done" type="button" onClick={onClose}>J’ai compris</button>
     </section>
   </div>, document.body)

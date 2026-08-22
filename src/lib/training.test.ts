@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { allowedAscentStyles, attemptsBeforeEntry, attemptsThroughEntry, attemptsToFirstSend, externalRouteNames, sessionTrainingLoad, sessionTrainingVolume, weeklyTrainingLoads } from './training'
+import { allowedAscentStyles, attemptsBeforeEntry, attemptsThroughEntry, attemptsToFirstSend, externalRouteNames, medianTrainingLoad, roundTrainingDuration, sessionTrainingLoad, sessionTrainingVolume, weeklyTrainingLoads } from './training'
 import type { TrainingRouteEntry } from '../types'
 
 function entry(overrides: Partial<TrainingRouteEntry>): TrainingRouteEntry {
@@ -58,7 +58,8 @@ describe('cumul des essais jusqu’au premier enchaînement', () => {
 describe('charge et volume de séance', () => {
   it('calcule la charge à partir de la durée et de l’effort global', () => {
     expect(sessionTrainingLoad(60, 7)).toBe(420)
-    expect(sessionTrainingLoad(60, 0)).toBe(0)
+    expect(sessionTrainingLoad(60, 1)).toBe(60)
+    expect(sessionTrainingLoad(60, 0)).toBeNull()
     expect(sessionTrainingLoad(null, 7)).toBeNull()
     expect(sessionTrainingLoad(60, null)).toBeNull()
   })
@@ -78,6 +79,19 @@ describe('charge et volume de séance', () => {
     expect(sessionTrainingLoad(0, 5)).toBeNull()
     expect(sessionTrainingLoad(60.5, 5)).toBeNull()
     expect(sessionTrainingLoad(60, 11)).toBeNull()
+  })
+
+  it('arrondit le temps au quart d’heure sauf sous quinze minutes', () => {
+    expect(roundTrainingDuration(8)).toBe(8)
+    expect(roundTrainingDuration(82)).toBe(75)
+    expect(roundTrainingDuration(83)).toBe(90)
+    expect(roundTrainingDuration(0)).toBeNull()
+  })
+
+  it('calcule un repère médian sans être tiré par une semaine extrême', () => {
+    expect(medianTrainingLoad([600, 650, 700, 3000])).toBe(675)
+    expect(medianTrainingLoad([600, 700, 800])).toBe(700)
+    expect(medianTrainingLoad([])).toBeNull()
   })
 
   it('décrit séparément le volume réellement enregistré', () => {

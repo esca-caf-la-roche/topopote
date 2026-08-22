@@ -64,8 +64,21 @@ export function allowedAscentStyles(attempts: number) {
 export function sessionTrainingLoad(durationMinutes: number | null, perceivedEffort: number | null) {
   if (durationMinutes === null || perceivedEffort === null) return null
   if (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 1440) return null
-  if (!Number.isInteger(perceivedEffort) || perceivedEffort < 0 || perceivedEffort > 10) return null
+  if (!Number.isInteger(perceivedEffort) || perceivedEffort < 1 || perceivedEffort > 10) return null
   return durationMinutes * perceivedEffort
+}
+
+export function roundTrainingDuration(durationMinutes: number) {
+  if (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 1440) return null
+  if (durationMinutes < 15) return durationMinutes
+  return Math.round(durationMinutes / 15) * 15
+}
+
+export function medianTrainingLoad(values: number[]) {
+  if (values.length === 0 || values.some((value) => !Number.isFinite(value) || value < 0)) return null
+  const sorted = [...values].sort((left, right) => left - right)
+  const middle = Math.floor(sorted.length / 2)
+  return sorted.length % 2 ? sorted[middle] : Math.round((sorted[middle - 1] + sorted[middle]) / 2)
 }
 
 export type TrainingLoadRecord = {

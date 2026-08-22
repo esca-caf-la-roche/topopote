@@ -69,9 +69,9 @@ export type ClimberProfile = {
 
 export type TrainingLocation = 'mur' | 'exterieur'
 
-export type TrainingActivityType = 'poutre' | 'renforcement' | 'course' | 'randonnee' | 'competition' | 'autre'
+export type TrainingActivityType = 'bloc_interieur' | 'bloc_exterieur' | 'poutre' | 'ppg' | 'cardio' | 'renforcement' | 'course' | 'randonnee' | 'competition' | 'autre'
 
-export type TrainingContextSignal = 'recuperation' | 'douleur' | 'stress' | 'performance'
+export type FingerLoad = 'faible' | 'moyenne' | 'forte'
 
 export type TrainingSession = {
   id: string
@@ -81,12 +81,8 @@ export type TrainingSession = {
   crag: string | null
   durationMinutes: number | null
   perceivedEffort: number | null
-  constraintType: string | null
-  contextSignals: TrainingContextSignal[]
-  contextNote: string | null
-  legacySensations: number | null
-  legacyPleasure: number | null
-  legacyFatigueAfter: number | null
+  fingerLoad: FingerLoad | null
+  pain: number | null
   createdAt: string
 }
 
@@ -97,9 +93,8 @@ export type TrainingActivity = {
   activityType: TrainingActivityType
   durationMinutes: number | null
   perceivedEffort: number | null
-  constraintType: string | null
-  contextSignals: TrainingContextSignal[]
-  contextNote: string | null
+  fingerLoad: FingerLoad | null
+  pain: number | null
   createdAt: string
 }
 

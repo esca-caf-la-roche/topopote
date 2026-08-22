@@ -108,51 +108,25 @@ select lives_ok(
 );
 select lives_ok(
   $$update public.seances_entrainement
-    set sensations = 4, plaisir = 5, fatigue_apres = 3
+    set duree_minutes = 60, effort_percu = 7,
+        contrainte_doigts = 'forte', douleur = 4
     where id = '60000000-0000-0000-0000-00000000d001'$$,
-  'le propriétaire peut noter sa séance'
+  'le propriétaire peut renseigner le suivi simple de sa séance'
 );
 select results_eq(
-  $$select sensations, plaisir, fatigue_apres
+  $$select duree_minutes, effort_percu, contrainte_doigts, douleur
     from public.seances_entrainement
     where id = '60000000-0000-0000-0000-00000000d001'$$,
-  $$values (4::smallint, 5::smallint, 3::smallint)$$,
-  'les trois notes de séance sont conservées'
+  $$values (60::smallint, 7::smallint, 'forte'::text, 4::smallint)$$,
+  'le temps, la RPE, les doigts et la douleur sont conservés'
 );
 select throws_ok(
   $$update public.seances_entrainement
-    set fatigue_apres = 6
+    set effort_percu = 0
     where id = '60000000-0000-0000-0000-00000000d001'$$,
   '23514',
   null,
-  'une note hors de la plage 1 à 5 est refusée'
-);
-select lives_ok(
-  $$update public.seances_entrainement
-    set duree_minutes = 60, effort_percu = 7
-    where id = '60000000-0000-0000-0000-00000000d001'$$,
-  'le propriétaire peut renseigner la durée et l’effort global'
-);
-select results_eq(
-  $$select duree_minutes, effort_percu
-    from public.seances_entrainement
-    where id = '60000000-0000-0000-0000-00000000d001'$$,
-  $$values (60::smallint, 7::smallint)$$,
-  'les données brutes de charge sont conservées sans stocker le calcul'
-);
-select lives_ok(
-  $$update public.seances_entrainement
-    set effort_percu = 0, type_contrainte = 'Bloc max',
-        signaux_contexte = array['douleur'], note_contexte = 'Doigt sensible'
-    where id = '60000000-0000-0000-0000-00000000d001'$$,
-  'la RPE 0 et le contexte restent des données distinctes de la charge'
-);
-select results_eq(
-  $$select effort_percu, type_contrainte, signaux_contexte, note_contexte
-    from public.seances_entrainement
-    where id = '60000000-0000-0000-0000-00000000d001'$$,
-  $$values (0::smallint, 'Bloc max'::text, array['douleur']::text[], 'Doigt sensible'::text)$$,
-  'la RPE 0 ne devient pas une valeur absente et les signaux sont conservés'
+  'une RPE inférieure à 1 est refusée'
 );
 select throws_ok(
   $$update public.seances_entrainement
@@ -164,6 +138,30 @@ select throws_ok(
 );
 select throws_ok(
   $$update public.seances_entrainement
+    set contrainte_doigts = 'énorme'
+    where id = '60000000-0000-0000-0000-00000000d001'$$,
+  '23514',
+  null,
+  'une contrainte doigts inconnue est refusée'
+);
+select throws_ok(
+  $$update public.seances_entrainement
+    set douleur = -1
+    where id = '60000000-0000-0000-0000-00000000d001'$$,
+  '23514',
+  null,
+  'une douleur négative est refusée'
+);
+select throws_ok(
+  $$update public.seances_entrainement
+    set douleur = 11
+    where id = '60000000-0000-0000-0000-00000000d001'$$,
+  '23514',
+  null,
+  'une douleur supérieure à 10 est refusée'
+);
+select throws_ok(
+  $$update public.seances_entrainement
     set duree_minutes = 1441
     where id = '60000000-0000-0000-0000-00000000d001'$$,
   '23514',
@@ -172,13 +170,20 @@ select throws_ok(
 );
 select lives_ok(
   $$insert into public.activites_charge (
-      id, user_id, date_activite, type_activite, duree_minutes, effort_percu, type_contrainte
+      id, user_id, date_activite, type_activite, duree_minutes, effort_percu, contrainte_doigts, douleur
     ) values (
       '90000000-0000-0000-0000-00000000d001',
       '00000000-0000-0000-0000-00000000d002',
-      current_date, 'poutre', 30, 6, 'Arquée'
+      current_date, 'bloc_interieur', 30, 6, 'moyenne', 0
     )$$,
   'le propriétaire autorisé peut enregistrer une activité complémentaire'
+);
+select results_eq(
+  $$select type_activite, contrainte_doigts, douleur
+    from public.activites_charge
+    where id = '90000000-0000-0000-0000-00000000d001'$$,
+  $$values ('bloc_interieur'::text, 'moyenne'::text, 0::smallint)$$,
+  'une autre activité conserve son type, ses doigts et son absence de douleur'
 );
 select is(
   (select user_id from public.activites_charge where id = '90000000-0000-0000-0000-00000000d001'),
@@ -256,7 +261,7 @@ select results_eq(
   'un autre pratiquant ne modifie aucune activité de charge privée'
 );
 select results_eq(
-  $$update public.seances_entrainement set sensations = 1 returning id$$,
+  $$update public.seances_entrainement set douleur = 1 returning id$$,
   $$select null::uuid where false$$,
   'un autre pratiquant ne modifie aucune séance privée'
 );

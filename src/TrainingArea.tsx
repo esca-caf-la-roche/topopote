@@ -4,10 +4,10 @@ import PrimaryNav from './PrimaryNav'
 import RouteAscentsModal from './RouteAscentsModal'
 import TrainingLoadTutorial from './TrainingLoadTutorial'
 import { styleLabels } from './lib/scoring'
-import { allowedAscentStyles, attemptsBeforeEntry, attemptsThroughEntry, attemptsToFirstSend, externalRouteNames, sameTrainingRoute, sessionTrainingLoad, sessionTrainingVolume, weeklyTrainingLoads } from './lib/training'
+import { allowedAscentStyles, attemptsBeforeEntry, attemptsThroughEntry, attemptsToFirstSend, externalRouteNames, medianTrainingLoad, roundTrainingDuration, sameTrainingRoute, sessionTrainingLoad, sessionTrainingVolume, weeklyTrainingLoads } from './lib/training'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
 import { usePendingAction } from './lib/usePendingAction'
-import type { AscentStyle, Grade, Route, RouteAscentPrefill, TrainingActivity, TrainingActivityType, TrainingContextSignal, TrainingLocation, TrainingRouteEntry, TrainingSession } from './types'
+import type { AscentStyle, FingerLoad, Grade, Route, RouteAscentPrefill, TrainingActivity, TrainingActivityType, TrainingLocation, TrainingRouteEntry, TrainingSession } from './types'
 
 type Feedback = { kind: 'error' | 'success'; text: string } | null
 
@@ -19,12 +19,8 @@ type SessionRow = {
   falaise: string | null
   duree_minutes: number | null
   effort_percu: number | null
-  type_contrainte: string | null
-  signaux_contexte: TrainingContextSignal[] | null
-  note_contexte: string | null
-  sensations: number | null
-  plaisir: number | null
-  fatigue_apres: number | null
+  contrainte_doigts: FingerLoad | null
+  douleur: number | null
   created_at: string
 }
 
@@ -35,21 +31,12 @@ type ActivityRow = {
   type_activite: TrainingActivityType
   duree_minutes: number | null
   effort_percu: number | null
-  type_contrainte: string | null
-  signaux_contexte: TrainingContextSignal[] | null
-  note_contexte: string | null
+  contrainte_doigts: FingerLoad | null
+  douleur: number | null
   created_at: string
 }
 
-type SessionLoadKey = 'durationMinutes' | 'perceivedEffort' | 'constraintType' | 'contextSignals' | 'contextNote'
-
-const sessionLoadColumns: Record<SessionLoadKey, 'duree_minutes' | 'effort_percu' | 'type_contrainte' | 'signaux_contexte' | 'note_contexte'> = {
-  durationMinutes: 'duree_minutes',
-  perceivedEffort: 'effort_percu',
-  constraintType: 'type_contrainte',
-  contextSignals: 'signaux_contexte',
-  contextNote: 'note_contexte',
-}
+type SessionTracking = Pick<TrainingSession, 'durationMinutes' | 'perceivedEffort' | 'fingerLoad' | 'pain'>
 
 type EntryRow = {
   id: string
@@ -159,8 +146,8 @@ export default function TrainingArea({ user, isAdmin, isOpener, sharesActivity, 
     }
     setLoading(true)
     const [sessionsResult, activitiesResult, entriesResult, ascentsResult] = await Promise.all([
-      supabase.from('seances_entrainement').select('id, user_id, date_seance, type_lieu, falaise, duree_minutes, effort_percu, type_contrainte, signaux_contexte, note_contexte, sensations, plaisir, fatigue_apres, created_at').order('date_seance', { ascending: false }).order('created_at', { ascending: false }),
-      supabase.from('activites_charge').select('id, user_id, date_activite, type_activite, duree_minutes, effort_percu, type_contrainte, signaux_contexte, note_contexte, created_at').order('date_activite', { ascending: false }).order('created_at', { ascending: false }),
+      supabase.from('seances_entrainement').select('id, user_id, date_seance, type_lieu, falaise, duree_minutes, effort_percu, contrainte_doigts, douleur, created_at').order('date_seance', { ascending: false }).order('created_at', { ascending: false }),
+      supabase.from('activites_charge').select('id, user_id, date_activite, type_activite, duree_minutes, effort_percu, contrainte_doigts, douleur, created_at').order('date_activite', { ascending: false }).order('created_at', { ascending: false }),
       supabase.from('voies_seance').select('id, seance_id, voie_id, nom_voie, cotation, commentaire, nombre_essais, enchainee, style, enchainement_id, created_at').order('created_at'),
       supabase.from('enchainements').select('id, voie_id').eq('user_id', user.id),
     ])
@@ -178,12 +165,8 @@ export default function TrainingArea({ user, isAdmin, isOpener, sharesActivity, 
       crag: row.falaise,
       durationMinutes: row.duree_minutes ?? null,
       perceivedEffort: row.effort_percu ?? null,
-      constraintType: row.type_contrainte ?? null,
-      contextSignals: row.signaux_contexte ?? [],
-      contextNote: row.note_contexte ?? null,
-      legacySensations: row.sensations ?? null,
-      legacyPleasure: row.plaisir ?? null,
-      legacyFatigueAfter: row.fatigue_apres ?? null,
+      fingerLoad: row.contrainte_doigts ?? null,
+      pain: row.douleur ?? null,
       createdAt: row.created_at,
     }))
     setActivities(((activitiesResult.data ?? []) as ActivityRow[]).map((row) => ({
@@ -193,9 +176,8 @@ export default function TrainingArea({ user, isAdmin, isOpener, sharesActivity, 
       activityType: row.type_activite,
       durationMinutes: row.duree_minutes ?? null,
       perceivedEffort: row.effort_percu ?? null,
-      constraintType: row.type_contrainte ?? null,
-      contextSignals: row.signaux_contexte ?? [],
-      contextNote: row.note_contexte ?? null,
+      fingerLoad: row.contrainte_doigts ?? null,
+      pain: row.douleur ?? null,
       createdAt: row.created_at,
     })))
     const sessionsById = Object.fromEntries(nextSessions.map((session) => [session.id, session]))
@@ -222,13 +204,13 @@ export default function TrainingArea({ user, isAdmin, isOpener, sharesActivity, 
 
   useEffect(() => { void loadTraining() }, [loadTraining])
 
-  async function updateSessionLoad(sessionId: string, key: SessionLoadKey, value: number | string | string[] | null) {
-    const { error } = await supabase!.from('seances_entrainement').update({ [sessionLoadColumns[key]]: value }).eq('id', sessionId)
+  async function updateSessionLoad(sessionId: string, values: SessionTracking) {
+    const { error } = await supabase!.from('seances_entrainement').update({ duree_minutes: values.durationMinutes, effort_percu: values.perceivedEffort, contrainte_doigts: values.fingerLoad, douleur: values.pain }).eq('id', sessionId)
     if (error) {
       setFeedback({ kind: 'error', text: `Impossible d’enregistrer la charge : ${error.message}` })
       return false
     }
-    setSessions((current) => current.map((session) => session.id === sessionId ? { ...session, [key]: value } : session))
+    setSessions((current) => current.map((session) => session.id === sessionId ? { ...session, ...values } : session))
     return true
   }
 
@@ -247,7 +229,7 @@ export default function TrainingArea({ user, isAdmin, isOpener, sharesActivity, 
 
   return <div className="site-shell">
     <PrimaryNav page="entrainement" authenticated={Boolean(user)} isAdmin={isAdmin} isOpener={isOpener} canAccessFriends={sharesActivity} canAccessTraining={hasTrainingAccess} loading={authLoading} onSignOut={onSignOut} />
-    <header className="hero hero--entrainement"><div className="hero__content"><p className="eyebrow">Section privée</p><h1 className="climber-title">Entraînement</h1><p className="intro">Ta charge personnelle, le contexte de tes efforts et tes voies travaillées.</p></div></header>
+    <header className="hero hero--entrainement"><div className="hero__content"><p className="eyebrow">Section privée</p><h1 className="climber-title">Entraînement</h1><p className="intro">Enregistre simplement tes séances et suis ta charge semaine après semaine.</p></div></header>
     {feedback && <div className={`message message--${feedback.kind}`} role={feedback.kind === 'error' ? 'alert' : 'status'}>{feedback.text}</div>}
     {pendingAscent && user && <RouteAscentsModal
       route={pendingAscent.route}
@@ -272,15 +254,13 @@ export default function TrainingArea({ user, isAdmin, isOpener, sharesActivity, 
             : <main className="training-page">
               <WeeklyLoadSummary sessions={sessions} activities={activities} onOpenTutorial={() => setTutorialOpen(true)} />
               <SessionForm sessions={sessions} onCreated={loadTraining} onFeedback={setFeedback} />
-              <ActivityForm onCreated={loadTraining} onFeedback={setFeedback} />
-              {activities.length > 0 && <section className="training-log"><div className="section-heading"><div><p className="section-kicker">Autres efforts</p><h2>Activités complémentaires</h2></div><span className="count">{activities.length}</span></div><div className="training-session-list">{activities.map((activity) => <ActivityCard key={activity.id} activity={activity} onChanged={loadTraining} onFeedback={setFeedback} />)}</div></section>}
-              <section className="training-log"><div className="section-heading"><div><p className="section-kicker">Historique</p><h2>Mes séances</h2></div><span className="count">{sessions.length}</span></div>
+              <section className="training-log"><div className="section-heading"><div><p className="section-kicker">Historique</p><h2>Mes séances</h2></div><span className="count">{sessions.length + activities.length}</span></div>
                 {loading ? <p className="empty-state">Chargement des séances…</p>
-                  : sessions.length === 0 ? <p className="empty-state">Aucune séance enregistrée.</p>
-                    : <div className="training-session-list">{sessions.map((session) => <SessionCard
-                      key={session.id}
-                      session={session}
-                      entries={entries.filter((entry) => entry.sessionId === session.id)}
+                  : sessions.length + activities.length === 0 ? <p className="empty-state">Aucune séance enregistrée.</p>
+                    : <div className="training-session-list">{[...sessions.map((session) => ({ kind: 'climbing' as const, item: session })), ...activities.map((activity) => ({ kind: 'other' as const, item: activity }))].sort((left, right) => right.item.date.localeCompare(left.item.date) || right.item.createdAt.localeCompare(left.item.createdAt)).map((record) => record.kind === 'other' ? <ActivityCard key={`activity-${record.item.id}`} activity={record.item} onChanged={loadTraining} onFeedback={setFeedback} /> : <SessionCard
+                      key={`session-${record.item.id}`}
+                      session={record.item}
+                      entries={entries.filter((entry) => entry.sessionId === record.item.id)}
                       allEntries={entries}
                       routes={routes}
                       grades={grades}
@@ -296,64 +276,33 @@ export default function TrainingArea({ user, isAdmin, isOpener, sharesActivity, 
 }
 
 const activityLabels: Record<TrainingActivityType, string> = {
-  poutre: 'Poutre / suspensions', renforcement: 'Renforcement', course: 'Course / cardio',
-  randonnee: 'Randonnée exigeante', competition: 'Compétition', autre: 'Autre activité physique',
+  bloc_interieur: 'Bloc intérieur', bloc_exterieur: 'Bloc extérieur', poutre: 'Poutre', ppg: 'PPG', cardio: 'Cardio',
+  renforcement: 'Renforcement', course: 'Course', randonnee: 'Randonnée', competition: 'Compétition', autre: 'Autre activité',
 }
-const effortLabels = ['Aucun effort', 'Très facile', 'Facile', 'Modérée', 'Assez difficile', 'Difficile', 'Exigeante', 'Très difficile', 'Très difficile +', 'Quasi maximale', 'Maximale']
-const constraintChoices = ['Volume facile', 'Bloc max', 'Voie / rési', 'Technique', 'Poutre', 'Arquée / bi-doigts', 'Renforcement', 'Cardio', 'Autre']
-const contextChoices: { value: TrainingContextSignal; label: string }[] = [
-  { value: 'recuperation', label: 'Récupération inhabituelle' }, { value: 'douleur', label: 'Douleur inhabituelle' },
-  { value: 'stress', label: 'Sommeil ou stress dégradé' }, { value: 'performance', label: 'Performance en baisse' },
-]
+const simpleActivityTypes: TrainingActivityType[] = ['bloc_interieur', 'bloc_exterieur', 'poutre', 'ppg', 'cardio']
+const effortLabels = ['Quasiment aucun effort', 'Très facile', 'Facile', 'Facile à modérée', 'Modérée', 'Difficile mais maîtrisée', 'Difficile et productive', 'Très difficile', 'Extrêmement difficile', 'Maximum exceptionnel']
+const fingerLabels: Record<FingerLoad, string> = { faible: 'Faible', moyenne: 'Moyenne', forte: 'Forte' }
+const painLabel = (pain: number | null) => pain === null ? 'Douleur —' : pain === 0 ? 'Pas de douleur' : `Douleur ${pain}/10`
 
 function WeeklyLoadSummary({ sessions, activities, onOpenTutorial }: { sessions: TrainingSession[]; activities: TrainingActivity[]; onOpenTutorial: () => void }) {
-  const weeks = weeklyTrainingLoads([...sessions, ...activities]).slice(0, 12)
+  const records = [...sessions, ...activities]
+  const weeks = weeklyTrainingLoads(records).slice(0, 12)
   const currentWeek = weeklyTrainingLoads([{ id: 'today', date: localDate(), durationMinutes: null, perceivedEffort: null }])[0]?.weekStart
-  const observedPastWeeks = weeks.filter((week) => week.weekStart !== currentWeek && week.completeCount > 0 && week.incompleteCount === 0)
+  const painWeeks = new Set(records.filter((record) => (record.pain ?? 0) > 0).map((record) => weeklyTrainingLoads([record])[0]?.weekStart))
+  const unassessedPainWeeks = new Set(records.filter((record) => record.pain === null).map((record) => weeklyTrainingLoads([record])[0]?.weekStart))
+  const observedPastWeeks = weeks.filter((week) => week.weekStart !== currentWeek && week.completeCount > 0 && week.incompleteCount === 0 && !painWeeks.has(week.weekStart) && !unassessedPainWeeks.has(week.weekStart))
+  const personalReference = medianTrainingLoad(observedPastWeeks.slice(0, 6).map((week) => week.totalLoad))
   const latest = weeks[0]
   const maxLoad = Math.max(1, ...weeks.map((week) => week.totalLoad))
   return <section className="training-load-dashboard" aria-labelledby="weekly-load-title">
-    <div className="section-heading"><div><p className="section-kicker">Suivi personnel</p><h2 id="weekly-load-title">Charge hebdomadaire enregistrée</h2></div><button className="button button--light" type="button" aria-label="Comprendre la charge" onClick={onOpenTutorial}>? Comprendre la charge</button></div>
-    <p>Somme des activités avec durée + RPE, du lundi au dimanche. Une activité incomplète est exclue du total et signalée.</p>
+    <div className="section-heading"><div><p className="section-kicker">Cette semaine</p><h2 id="weekly-load-title">Ma charge</h2></div><button className="training-help-button" type="button" aria-label="Comprendre la charge" title="Comprendre la charge" onClick={onOpenTutorial}>?</button></div>
+    <p>Temps × RPE, du lundi au dimanche.</p>
     {weeks.length === 0 ? <p className="empty-state">Ajoute une séance ou une activité pour commencer ton suivi.</p> : <>
       <div className="weekly-load__headline"><div><span>{latest?.weekStart === currentWeek ? 'Cette semaine · en cours' : 'Dernière semaine enregistrée'}</span><output>{latest?.totalLoad ?? 0} UA</output></div>{latest && latest.incompleteCount > 0 && <strong>{latest.incompleteCount} activité{latest.incompleteCount > 1 ? 's' : ''} à compléter · total partiel</strong>}</div>
       <div className="weekly-load__chart" aria-label="Historique des charges hebdomadaires">{weeks.slice(0, 8).reverse().map((week) => <div className="weekly-load__week" key={week.weekStart}><div className="weekly-load__bar"><span style={{ height: `${Math.max(4, (week.totalLoad / maxLoad) * 100)}%` }} /></div><strong>{week.totalLoad}</strong><small>{formatDate(week.weekStart)}</small>{week.incompleteCount > 0 && <em>partiel</em>}</div>)}</div>
-      {observedPastWeeks.length < 4 ? <p className="weekly-load__calibration"><strong>Observation en cours :</strong> {observedPastWeeks.length}/4 semaines passées renseignées sans fiche incomplète. À 8–12 semaines, ton historique sera plus solide.</p> : <p className="weekly-load__calibration"><strong>Repère historique disponible :</strong> compare seulement tes semaines renseignées avec la même méthode, jamais ce chiffre à celui d’une autre personne.</p>}
+      {observedPastWeeks.length < 4 ? <p className="weekly-load__calibration"><strong>Repère en cours :</strong> {observedPastWeeks.length}/4 semaines complètes sans douleur déclarée.</p> : <p className="weekly-load__calibration"><strong>Ton repère habituel : environ {personalReference} UA/semaine.</strong> Compare-toi à ta propre habitude, pas aux autres.</p>}
     </>}
-    <p className="training-load-dashboard__limit">UA = indicateur personnel, pas seuil de blessure. Topopote signale les fiches incomplètes mais ne peut pas détecter une activité oubliée. La douleur et les contraintes doigts/coudes/épaules restent indépendantes du score.</p>
-  </section>
-}
-
-function ActivityForm({ onCreated, onFeedback }: { onCreated: () => Promise<void>; onFeedback: (feedback: Feedback) => void }) {
-  const [date, setDate] = useState(localDate)
-  const [activityType, setActivityType] = useState<TrainingActivityType>('poutre')
-  const [duration, setDuration] = useState('')
-  const [effort, setEffort] = useState('')
-  const [constraintType, setConstraintType] = useState('Poutre')
-  const [contextSignals, setContextSignals] = useState<TrainingContextSignal[]>([])
-  const [contextNote, setContextNote] = useState('')
-  const { pending, run } = usePendingAction()
-  async function submit(event: FormEvent) {
-    event.preventDefault()
-    await run(async () => {
-      const { error } = await supabase!.from('activites_charge').insert({ date_activite: date, type_activite: activityType, duree_minutes: Number(duration), effort_percu: Number(effort), type_contrainte: constraintType || null, signaux_contexte: contextSignals, note_contexte: contextNote.trim() || null })
-      if (error) return onFeedback({ kind: 'error', text: error.message })
-      onFeedback({ kind: 'success', text: 'Activité ajoutée au suivi hebdomadaire.' })
-      await onCreated()
-    })
-  }
-  return <section className="training-activity-form">
-    <p className="section-kicker">Charge complète</p><h2>Ajouter une autre activité</h2><p>Poutre, renforcement, cardio, randonnée exigeante ou compétition comptent aussi.</p>
-    <form className="form-grid" onSubmit={submit}>
-      <label><span>Date</span><input type="date" required max={localDate()} value={date} onChange={(event) => setDate(event.target.value)} /></label>
-      <label><span>Activité</span><select value={activityType} onChange={(event) => setActivityType(event.target.value as TrainingActivityType)}>{Object.entries(activityLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
-      <label><span>Durée de pratique (min)</span><input type="number" min="1" max="1440" required value={duration} onChange={(event) => setDuration(event.target.value)} /></label>
-      <label><span>RPE globale</span><select required value={effort} onChange={(event) => setEffort(event.target.value)}><option value="">Choisir après l’activité</option>{effortLabels.map((label, value) => <option value={value} key={value}>{value} — {label}</option>)}</select></label>
-      <label><span>Contrainte dominante</span><input maxLength={80} list="activity-constraints" value={constraintType} onChange={(event) => setConstraintType(event.target.value)} /><datalist id="activity-constraints">{constraintChoices.map((choice) => <option value={choice} key={choice} />)}</datalist></label>
-      <fieldset><legend>Signaux facultatifs</legend><div className="context-choices">{contextChoices.map((choice) => <button type="button" className={contextSignals.includes(choice.value) ? 'is-active' : ''} aria-pressed={contextSignals.includes(choice.value)} onClick={() => setContextSignals((current) => current.includes(choice.value) ? current.filter((value) => value !== choice.value) : [...current, choice.value])} key={choice.value}>{choice.label}</button>)}</div></fieldset>
-      <label><span>Contexte facultatif</span><textarea rows={2} maxLength={500} value={contextNote} placeholder="Sommeil, stress, motivation, performance…" onChange={(event) => setContextNote(event.target.value)} /></label>
-      <button className="button button--accent" disabled={pending}>{pending ? 'Ajout…' : '➕ Ajouter l’activité'}</button>
-    </form>
+    <p className="training-load-dashboard__limit">La douleur passe toujours avant le score.</p>
   </section>
 }
 
@@ -368,26 +317,52 @@ function ActivityCard({ activity, onChanged, onFeedback }: { activity: TrainingA
       await onChanged()
     })
   }
-  return <article className="training-activity-card"><div><p className="section-kicker">{activityLabels[activity.activityType]}</p><h3>{formatDate(activity.date)}</h3><p>{activity.constraintType ?? 'Contrainte non précisée'}</p>{activity.contextSignals.length > 0 && <small>{activity.contextSignals.map((signal) => contextChoices.find((choice) => choice.value === signal)?.label ?? signal).join(' · ')}</small>}{activity.contextNote && <p>{activity.contextNote}</p>}</div><div className="training-activity-card__load"><output>{load ?? '—'}{load !== null ? ' UA' : ''}</output><small>{activity.durationMinutes} min × RPE {activity.perceivedEffort}/10</small></div><button className="training-icon-action training-icon-action--danger" type="button" aria-label="Supprimer l’activité" disabled={pending} onClick={() => void remove()}>🗑️</button></article>
+  return <article className="training-activity-card"><div><p className="section-kicker">Autres · {activityLabels[activity.activityType]}</p><h3>{formatDate(activity.date)}</h3><div className="training-simple-tags"><span>Doigts {activity.fingerLoad ? fingerLabels[activity.fingerLoad] : '—'}</span><span className={activity.pain ? 'is-pain' : ''}>{painLabel(activity.pain)}</span></div></div><div className="training-activity-card__load"><output>{load ?? '—'}{load !== null ? ' UA' : ''}</output><small>{load === null ? 'Données incomplètes' : `${activity.durationMinutes} min × RPE ${activity.perceivedEffort}/10`}</small></div><button className="training-icon-action training-icon-action--danger" type="button" aria-label="Supprimer l’activité" disabled={pending} onClick={() => void remove()}>🗑️</button></article>
 }
 
 function SessionForm({ sessions, onCreated, onFeedback }: { sessions: TrainingSession[]; onCreated: () => Promise<void>; onFeedback: (feedback: Feedback) => void }) {
   const [date, setDate] = useState(localDate)
-  const [location, setLocation] = useState<TrainingLocation>('mur')
+  const [activity, setActivity] = useState<'mur' | 'exterieur' | 'autre'>('mur')
+  const [activityType, setActivityType] = useState<TrainingActivityType>('bloc_interieur')
   const [crag, setCrag] = useState('')
+  const [duration, setDuration] = useState('')
+  const [effort, setEffort] = useState('')
+  const [fingerLoad, setFingerLoad] = useState<FingerLoad>('moyenne')
+  const [hasPain, setHasPain] = useState(false)
+  const [pain, setPain] = useState('')
   const crags = useMemo(() => [...new Set(sessions.filter((session) => session.location === 'exterieur').map((session) => session.crag?.trim()).filter((value): value is string => Boolean(value)))].sort((left, right) => left.localeCompare(right, 'fr', { sensitivity: 'base' })), [sessions])
   const { pending, run } = usePendingAction()
   async function submit(event: FormEvent) {
     event.preventDefault()
     await run(async () => {
-      const { error } = await supabase!.from('seances_entrainement').insert({ date_seance: date, type_lieu: location, falaise: location === 'exterieur' ? crag.trim() : null })
+      const roundedDuration = roundTrainingDuration(Number(duration))
+      if (roundedDuration === null) return onFeedback({ kind: 'error', text: 'Le temps de séance est invalide.' })
+      const common = { duree_minutes: roundedDuration, effort_percu: Number(effort), contrainte_doigts: fingerLoad, douleur: hasPain ? Number(pain) : 0 }
+      const { error } = activity === 'autre'
+        ? await supabase!.from('activites_charge').insert({ date_activite: date, type_activite: activityType, ...common })
+        : await supabase!.from('seances_entrainement').insert({ date_seance: date, type_lieu: activity, falaise: activity === 'exterieur' ? crag.trim() : null, ...common })
       if (error) return onFeedback({ kind: 'error', text: error.message })
       setCrag('')
-      onFeedback({ kind: 'success', text: 'Séance créée. Ajoute maintenant les voies travaillées.' })
+      setDuration('')
+      setEffort('')
+      setHasPain(false)
+      setPain('')
+      onFeedback({ kind: 'success', text: roundedDuration === Number(duration) ? 'Séance enregistrée.' : `Séance enregistrée avec un temps arrondi à ${roundedDuration} min.` })
       await onCreated()
     })
   }
-  return <section className="training-session-form"><p className="section-kicker">Nouvelle séance</p><h2>Où as-tu grimpé ?</h2><form className="form-grid" onSubmit={submit}><label><span>Date</span><input type="date" required max={localDate()} value={date} onChange={(event) => setDate(event.target.value)} /></label><label><span>Lieu</span><select value={location} onChange={(event) => setLocation(event.target.value as TrainingLocation)}><option value="mur">🧗 Mur de Saint-Pierre</option><option value="exterieur">🏔️ Extérieur</option></select></label>{location === 'exterieur' && <label><span>Falaise</span><input required maxLength={120} list="training-crags" placeholder="Choisir ou saisir une falaise" value={crag} onChange={(event) => setCrag(event.target.value)} /><datalist id="training-crags">{crags.map((name) => <option value={name} key={name} />)}</datalist></label>}<button className="button button--accent" disabled={pending}>{pending ? 'Création…' : '➕ Créer la séance'}</button></form></section>
+  return <section className="training-session-form"><p className="section-kicker">Nouvelle séance</p><h2>Enregistrer ma séance</h2><form className="form-grid training-simple-form" onSubmit={submit}>
+    <label><span>Date</span><input type="date" required max={localDate()} value={date} onChange={(event) => setDate(event.target.value)} /></label>
+    <label><span>Activité</span><select aria-label="Activité" value={activity} onChange={(event) => setActivity(event.target.value as typeof activity)}><option value="mur">Mur St Pierre</option><option value="exterieur">Extérieur</option><option value="autre">Autres</option></select></label>
+    {activity === 'exterieur' && <label><span>Falaise</span><input required maxLength={120} list="training-crags" placeholder="Choisir ou saisir une falaise" value={crag} onChange={(event) => setCrag(event.target.value)} /><datalist id="training-crags">{crags.map((name) => <option value={name} key={name} />)}</datalist></label>}
+    {activity === 'autre' && <label><span>Type d’activité</span><select aria-label="Type d’activité" value={activityType} onChange={(event) => setActivityType(event.target.value as TrainingActivityType)}>{simpleActivityTypes.map((value) => <option value={value} key={value}>{activityLabels[value]}</option>)}</select></label>}
+    <label><span>Temps (min)</span><input type="number" min="1" max="1440" required value={duration} onChange={(event) => setDuration(event.target.value)} /><small>Arrondi automatiquement au quart d’heure.</small></label>
+    <label><span>RPE</span><select aria-label="RPE" required value={effort} onChange={(event) => setEffort(event.target.value)}><option value="">Choisir</option>{effortLabels.map((label, index) => <option value={index + 1} key={index + 1}>{index + 1} — {label}</option>)}</select></label>
+    <label><span>Doigts</span><select aria-label="Doigts" value={fingerLoad} onChange={(event) => setFingerLoad(event.target.value as FingerLoad)}>{Object.entries(fingerLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
+    <fieldset><legend>Douleurs</legend><div className="training-binary-choice"><label><input type="radio" name="pain" checked={!hasPain} onChange={() => { setHasPain(false); setPain('') }} /> Non</label><label><input type="radio" name="pain" checked={hasPain} onChange={() => setHasPain(true)} /> Oui</label></div></fieldset>
+    {hasPain && <label><span>Douleur (1–10)</span><input aria-label="Douleur de 1 à 10" type="number" min="1" max="10" required value={pain} onChange={(event) => setPain(event.target.value)} /></label>}
+    <button className="button button--accent" disabled={pending}>{pending ? 'Enregistrement…' : 'Enregistrer la séance'}</button>
+  </form></section>
 }
 
 function SessionCard({ session, entries, allEntries, routes, grades, ascentIdsByRoute, onLoadChanged, onOpenAscent, onChanged, onFeedback }: {
@@ -397,7 +372,7 @@ function SessionCard({ session, entries, allEntries, routes, grades, ascentIdsBy
   routes: Route[]
   grades: Grade[]
   ascentIdsByRoute: Record<string, string>
-  onLoadChanged: (sessionId: string, key: SessionLoadKey, value: number | string | string[] | null) => Promise<boolean>
+  onLoadChanged: (sessionId: string, values: SessionTracking) => Promise<boolean>
   onOpenAscent: (entry: TrainingRouteEntry, style?: AscentStyle | null) => void
   onChanged: () => Promise<void>
   onFeedback: (feedback: Feedback) => void
@@ -420,62 +395,38 @@ function SessionCard({ session, entries, allEntries, routes, grades, ascentIdsBy
   </article>
 }
 
-function SessionLoad({ session, entries, onChange }: { session: TrainingSession; entries: TrainingRouteEntry[]; onChange: (sessionId: string, key: SessionLoadKey, value: number | string | string[] | null) => Promise<boolean> }) {
-  const [saving, setSaving] = useState<SessionLoadKey[]>([])
+function SessionLoad({ session, entries, onChange }: { session: TrainingSession; entries: TrainingRouteEntry[]; onChange: (sessionId: string, values: SessionTracking) => Promise<boolean> }) {
+  const [editing, setEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [duration, setDuration] = useState(session.durationMinutes?.toString() ?? '')
-  const [constraintType, setConstraintType] = useState(session.constraintType ?? '')
-  const [contextNote, setContextNote] = useState(session.contextNote ?? '')
+  const [effort, setEffort] = useState(session.perceivedEffort?.toString() ?? '')
+  const [fingerLoad, setFingerLoad] = useState<FingerLoad>(session.fingerLoad ?? 'moyenne')
+  const [hasPain, setHasPain] = useState(Boolean(session.pain))
+  const [pain, setPain] = useState(session.pain ? session.pain.toString() : '')
   const load = sessionTrainingLoad(session.durationMinutes, session.perceivedEffort)
   const volume = sessionTrainingVolume(entries)
 
   useEffect(() => setDuration(session.durationMinutes?.toString() ?? ''), [session.durationMinutes])
-  useEffect(() => setConstraintType(session.constraintType ?? ''), [session.constraintType])
-  useEffect(() => setContextNote(session.contextNote ?? ''), [session.contextNote])
-
-  async function change(key: SessionLoadKey, value: number | string | string[] | null) {
-    setSaving((current) => [...current, key])
-    const saved = await onChange(session.id, key, value)
-    setSaving((current) => current.filter((candidate) => candidate !== key))
-    return saved
-  }
-  async function saveDuration() {
-    const value = duration === '' ? null : Number(duration)
-    if (value !== null && (!Number.isInteger(value) || value < 1 || value > 1440)) {
-      setDuration(session.durationMinutes?.toString() ?? '')
-      return
-    }
-    if (value !== session.durationMinutes && !await change('durationMinutes', value)) {
-      setDuration(session.durationMinutes?.toString() ?? '')
-    }
-  }
-  function toggleSignal(signal: TrainingContextSignal) {
-    const next = session.contextSignals.includes(signal) ? session.contextSignals.filter((value) => value !== signal) : [...session.contextSignals, signal]
-    void change('contextSignals', next)
-  }
-  async function saveConstraint() {
-    const value = constraintType.trim() || null
-    if (value === session.constraintType) return
-    if (!await change('constraintType', value)) setConstraintType(session.constraintType ?? '')
-  }
-  async function saveContextNote() {
-    const value = contextNote.trim() || null
-    if (value === session.contextNote) return
-    if (!await change('contextNote', value)) setContextNote(session.contextNote ?? '')
+  async function save(event: FormEvent) {
+    event.preventDefault()
+    const roundedDuration = roundTrainingDuration(Number(duration))
+    if (roundedDuration === null || !effort || (hasPain && !pain)) return
+    setSaving(true)
+    const saved = await onChange(session.id, { durationMinutes: roundedDuration, perceivedEffort: Number(effort), fingerLoad, pain: hasPain ? Number(pain) : 0 })
+    setSaving(false)
+    if (!saved) return
+    setEditing(false)
   }
 
   return <section className="session-load" aria-label="Charge de la séance">
     <div className="session-load__result">
       <span>Charge de séance</span>
       <output>{load === null ? '—' : `${load} UA`}</output>
-      <small>{load === null ? 'Renseigne la durée et la RPE globale' : `${session.durationMinutes} min × RPE ${session.perceivedEffort}/10`}</small>
+      <small>{load === null ? 'Séance à compléter' : `${session.durationMinutes} min × RPE ${session.perceivedEffort}/10`}</small>
     </div>
-    <div className="session-load__inputs">
-      <label><span>Durée de pratique</span><span className="duration-input"><input aria-label="Durée de pratique en minutes" type="number" min="1" max="1440" inputMode="numeric" value={duration} disabled={saving.includes('durationMinutes')} onChange={(event) => setDuration(event.target.value)} onBlur={() => void saveDuration()} /><small>min · échauffement → dernier effort, repos usuels inclus</small></span></label>
-      <label><span>RPE globale</span><small>À quel point la séance entière a-t-elle été difficile ?</small><select aria-label="RPE globale de la séance" value={session.perceivedEffort ?? ''} disabled={saving.includes('perceivedEffort')} onChange={(event) => void change('perceivedEffort', event.target.value === '' ? null : Number(event.target.value))}><option value="">À renseigner</option>{effortLabels.map((label, value) => <option value={value} key={value}>{value} — {label}</option>)}</select><small>Idéalement 15–30 min après, avec un délai constant.</small></label>
-    </div>
-    <div className="session-load__context"><label><span>Contrainte dominante</span><input maxLength={80} list={`training-constraints-${session.id}`} value={constraintType} disabled={saving.includes('constraintType')} placeholder="Ex. bloc max, voie rési, arquée…" onChange={(event) => setConstraintType(event.target.value)} onBlur={() => void saveConstraint()} /><datalist id={`training-constraints-${session.id}`}>{constraintChoices.map((choice) => <option value={choice} key={choice} />)}</datalist></label><fieldset disabled={saving.includes('contextSignals')}><legend>Signaux à garder visibles</legend><div className="context-choices">{contextChoices.map((choice) => <button type="button" className={session.contextSignals.includes(choice.value) ? 'is-active' : ''} aria-pressed={session.contextSignals.includes(choice.value)} onClick={() => toggleSignal(choice.value)} key={choice.value}>{choice.label}</button>)}</div></fieldset><label><span>Contexte facultatif</span><textarea rows={2} maxLength={500} disabled={saving.includes('contextNote')} placeholder="Sommeil, stress, motivation, performance…" value={contextNote} onChange={(event) => setContextNote(event.target.value)} onBlur={() => void saveContextNote()} /></label></div>
+    <div className="training-simple-tags"><span>Doigts {session.fingerLoad ? fingerLabels[session.fingerLoad] : '—'}</span><span className={session.pain ? 'is-pain' : ''}>{painLabel(session.pain)}</span><button type="button" onClick={() => setEditing((value) => !value)}>{editing ? 'Annuler' : 'Modifier'}</button></div>
     <div className="session-load__volume" aria-label="Volume enregistré"><span><strong>{volume.routes}</strong> voie{volume.routes > 1 ? 's' : ''}</span><span><strong>{volume.attempts}</strong> essai{volume.attempts > 1 ? 's' : ''}</span><span><strong>{volume.sends}</strong> enchaînement{volume.sends > 1 ? 's' : ''}</span></div>
-    {(session.legacySensations !== null || session.legacyPleasure !== null || session.legacyFatigueAfter !== null) && <div className="session-load__legacy"><strong>Ancien suivi</strong>{session.legacySensations !== null && <span>Sensations {session.legacySensations}/5</span>}{session.legacyPleasure !== null && <span>Plaisir {session.legacyPleasure}/5</span>}{session.legacyFatigueAfter !== null && <span>Fatigue {session.legacyFatigueAfter}/5</span>}</div>}
+    {editing && <form className="training-load-edit" onSubmit={save}><label><span>Temps (min)</span><input aria-label="Temps en minutes" type="number" min="1" max="1440" required value={duration} onChange={(event) => setDuration(event.target.value)} /></label><label><span>RPE</span><select aria-label="RPE de la séance" required value={effort} onChange={(event) => setEffort(event.target.value)}><option value="">Choisir</option>{effortLabels.map((label, index) => <option value={index + 1} key={index + 1}>{index + 1} — {label}</option>)}</select></label><label><span>Doigts</span><select value={fingerLoad} onChange={(event) => setFingerLoad(event.target.value as FingerLoad)}>{Object.entries(fingerLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label><fieldset><legend>Douleurs</legend><div className="training-binary-choice"><label><input type="radio" name={`edit-pain-${session.id}`} checked={!hasPain} onChange={() => { setHasPain(false); setPain('') }} /> Non</label><label><input type="radio" name={`edit-pain-${session.id}`} checked={hasPain} onChange={() => setHasPain(true)} /> Oui</label></div></fieldset>{hasPain && <label><span>Douleur (1–10)</span><input type="number" min="1" max="10" required value={pain} onChange={(event) => setPain(event.target.value)} /></label>}<button className="button button--accent" disabled={saving}>{saving ? 'Enregistrement…' : 'Enregistrer'}</button></form>}
   </section>
 }
 

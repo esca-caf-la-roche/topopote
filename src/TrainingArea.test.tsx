@@ -9,14 +9,17 @@ function queryResult(data: unknown[] = []) {
   const query = {
     select: () => query,
     update: (values: unknown) => { update(values); return query },
+    insert: (values: unknown) => { insert(values); return query },
+    delete: () => query,
     order: () => query,
     eq: () => query,
+    single: () => Promise.resolve(result),
     then: (resolve: (value: typeof result) => unknown) => Promise.resolve(result).then(resolve),
   }
   return query
 }
 
-const { from, update } = vi.hoisted(() => ({ from: vi.fn(), update: vi.fn() }))
+const { from, insert, update } = vi.hoisted(() => ({ from: vi.fn(), insert: vi.fn(), update: vi.fn() }))
 
 vi.mock('./lib/supabase', () => ({
   isSupabaseConfigured: true,
@@ -28,6 +31,7 @@ describe('TrainingArea', () => {
     cleanup()
     window.sessionStorage.clear()
     from.mockReset()
+    insert.mockReset()
     update.mockReset()
     from.mockImplementation(() => queryResult())
   })
@@ -38,11 +42,30 @@ describe('TrainingArea', () => {
     expect(from).not.toHaveBeenCalled()
   })
 
-  it('affiche les formulaires de séances uniquement au profil autorisé', async () => {
+  it('affiche le formulaire simple uniquement au profil autorisé', async () => {
     render(<TrainingArea user={{ id: 'user-1' } as never} isAdmin={false} isOpener={false} sharesActivity={false} hasTrainingAccess authLoading={false} routes={[]} grades={[]} onSignOut={async () => undefined} />)
-    expect(await screen.findByRole('heading', { name: 'Où as-tu grimpé ?' })).toBeTruthy()
+    expect(await screen.findByRole('heading', { name: 'Enregistrer ma séance' })).toBeTruthy()
+    expect(screen.getByLabelText('Activité')).toBeTruthy()
+    expect(screen.getByLabelText('RPE')).toBeTruthy()
+    expect(screen.getByLabelText('Doigts')).toBeTruthy()
     await waitFor(() => expect(screen.getByText('Aucune séance enregistrée.')).toBeTruthy())
     expect(screen.getByRole('link', { name: 'Entraînement' }).getAttribute('aria-current')).toBe('page')
+  })
+
+  it('révèle les sous-types et quantifie une douleur pour une autre activité', async () => {
+    render(<TrainingArea user={{ id: 'user-1' } as never} isAdmin={false} isOpener={false} sharesActivity={false} hasTrainingAccess authLoading={false} routes={[]} grades={[]} onSignOut={async () => undefined} />)
+    await screen.findByRole('heading', { name: 'Enregistrer ma séance' })
+    fireEvent.change(screen.getByLabelText('Activité'), { target: { value: 'autre' } })
+    expect(screen.getByLabelText('Type d’activité')).toBeTruthy()
+    expect(within(screen.getByLabelText('Type d’activité')).getByRole('option', { name: 'Bloc intérieur' })).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('Type d’activité'), { target: { value: 'poutre' } })
+    fireEvent.change(screen.getByRole('spinbutton', { name: /Temps/ }), { target: { value: '83' } })
+    fireEvent.change(screen.getByLabelText('RPE'), { target: { value: '6' } })
+    fireEvent.change(screen.getByLabelText('Doigts'), { target: { value: 'forte' } })
+    fireEvent.click(screen.getByLabelText('Oui'))
+    fireEvent.change(screen.getByLabelText('Douleur de 1 à 10'), { target: { value: '4' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer la séance' }))
+    await waitFor(() => expect(insert).toHaveBeenCalledWith(expect.objectContaining({ type_activite: 'poutre', duree_minutes: 90, effort_percu: 6, contrainte_doigts: 'forte', douleur: 4 })))
   })
 
   it('restaure une voie extérieure en cours après avoir quitté la page', async () => {
@@ -64,7 +87,7 @@ describe('TrainingArea', () => {
 
   it('sépare les essais, permet la modification et filtre les suggestions par falaise', async () => {
     const sessions = [
-      { id: 'session-2', user_id: 'user-1', date_seance: '2026-08-18', type_lieu: 'exterieur', falaise: 'Ablon', duree_minutes: 60, effort_percu: 7, sensations: 4, plaisir: 5, fatigue_apres: 3, created_at: '2026-08-18T12:00:00Z' },
+      { id: 'session-2', user_id: 'user-1', date_seance: '2026-08-18', type_lieu: 'exterieur', falaise: 'Ablon', duree_minutes: 60, effort_percu: 7, contrainte_doigts: 'forte', douleur: 0, created_at: '2026-08-18T12:00:00Z' },
       { id: 'session-1', user_id: 'user-1', date_seance: '2026-08-10', type_lieu: 'exterieur', falaise: 'Ablon', created_at: '2026-08-10T12:00:00Z' },
       { id: 'session-3', user_id: 'user-1', date_seance: '2026-08-09', type_lieu: 'exterieur', falaise: 'Le Salève', created_at: '2026-08-09T12:00:00Z' },
     ]
@@ -80,18 +103,9 @@ describe('TrainingArea', () => {
     const currentSession = screen.getByText('18/08/2026').closest('article')!
     expect(within(currentSession).getByText('420 UA')).toBeTruthy()
     expect(within(currentSession).getByText('60 min × RPE 7/10')).toBeTruthy()
-    expect((within(currentSession).getByLabelText('RPE globale de la séance') as HTMLSelectElement).value).toBe('7')
+    expect(within(currentSession).getByText('Doigts Forte')).toBeTruthy()
     expect(within(currentSession).getByLabelText('Volume enregistré').textContent).toContain('2 essais')
     expect(within(currentSession).getByLabelText('Volume enregistré').textContent).toContain('1 enchaînement')
-    expect(within(currentSession).getByText('Sensations 4/5')).toBeTruthy()
-    const duration = within(currentSession).getByLabelText('Durée de pratique en minutes')
-    fireEvent.change(duration, { target: { value: '90' } })
-    fireEvent.blur(duration)
-    fireEvent.change(within(currentSession).getByLabelText('RPE globale de la séance'), { target: { value: '5' } })
-    await waitFor(() => {
-      expect(update).toHaveBeenCalledWith({ duree_minutes: 90 })
-      expect(update).toHaveBeenCalledWith({ effort_percu: 5 })
-    })
     const row = comment.closest('article')!
     expect(within(row).getByText('2')).toBeTruthy()
     expect(within(row).getByText('6')).toBeTruthy()
@@ -104,21 +118,21 @@ describe('TrainingArea', () => {
     const suggestions = [...document.getElementById(listId)!.querySelectorAll('option')].map((option) => option.getAttribute('value'))
     expect(suggestions).toContain('La Directe')
     expect(suggestions).not.toContain('L’Arête')
-    fireEvent.change(screen.getByLabelText('Lieu'), { target: { value: 'exterieur' } })
+    fireEvent.change(screen.getByLabelText('Activité'), { target: { value: 'exterieur' } })
     expect([...document.querySelectorAll('#training-crags option')].map((option) => option.getAttribute('value'))).toEqual(['Ablon', 'Le Salève'])
   })
 
-  it('explique la convention de durée, la formule, les limites et chaque RPE de 0 à 10', async () => {
+  it('explique simplement la formule, le temps, les doigts et chaque RPE de 1 à 10', async () => {
     render(<TrainingArea user={{ id: 'user-1' } as never} isAdmin={false} isOpener={false} sharesActivity={false} hasTrainingAccess authLoading={false} routes={[]} grades={[]} onSignOut={async () => undefined} />)
     const tutorialButton = await screen.findByRole('button', { name: 'Comprendre la charge' })
     tutorialButton.focus()
     fireEvent.click(tutorialButton)
-    const dialog = screen.getByRole('dialog', { name: 'Comprendre ta charge d’entraînement' })
+    const dialog = screen.getByRole('dialog', { name: 'La charge, simplement' })
     expect(within(dialog).getByText(/90 min × RPE 8 = 720 UA/)).toBeTruthy()
-    expect(within(dialog).getByText(/marche d’approche/)).toBeTruthy()
-    expect(within(dialog).getByText(/15 à 30 minutes/)).toBeTruthy()
-    expect(within(dialog).getByText(/Il n’existe pas de seuil universel/)).toBeTruthy()
-    for (let value = 0; value <= 10; value += 1) expect(within(dialog).getByText(new RegExp(`^${value} —`))).toBeTruthy()
+    expect(within(dialog).getByText(/choisis une fois pour toutes/)).toBeTruthy()
+    expect(within(dialog).getByText(/quart d’heure/)).toBeTruthy()
+    expect(within(dialog).getByText(/faible, moyenne ou forte/)).toBeTruthy()
+    for (let value = 1; value <= 10; value += 1) expect(within(dialog).getByText(new RegExp(`^${value} —`))).toBeTruthy()
     fireEvent.keyDown(window, { key: 'Escape' })
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Comprendre la charge' }))
@@ -129,12 +143,12 @@ describe('TrainingArea', () => {
       { id: 'session-complete', user_id: 'user-1', date_seance: '2026-08-18', type_lieu: 'mur', falaise: null, duree_minutes: 60, effort_percu: 7, created_at: '2026-08-18T12:00:00Z' },
       { id: 'session-incomplete', user_id: 'user-1', date_seance: '2026-08-19', type_lieu: 'mur', falaise: null, duree_minutes: 45, effort_percu: null, created_at: '2026-08-19T12:00:00Z' },
     ]
-    const activities = [{ id: 'activity-1', user_id: 'user-1', date_activite: '2026-08-20', type_activite: 'poutre', duree_minutes: 30, effort_percu: 6, type_contrainte: 'Arquée', signaux_contexte: ['douleur'], note_contexte: 'Doigt sensible', created_at: '2026-08-20T12:00:00Z' }]
+    const activities = [{ id: 'activity-1', user_id: 'user-1', date_activite: '2026-08-20', type_activite: 'poutre', duree_minutes: 30, effort_percu: 6, contrainte_doigts: 'forte', douleur: 4, created_at: '2026-08-20T12:00:00Z' }]
     from.mockImplementation((table: string) => queryResult(table === 'seances_entrainement' ? sessions : table === 'activites_charge' ? activities : []))
     render(<TrainingArea user={{ id: 'user-1' } as never} isAdmin={false} isOpener={false} sharesActivity={false} hasTrainingAccess authLoading={false} routes={[]} grades={[]} onSignOut={async () => undefined} />)
     expect(await screen.findByText('600 UA')).toBeTruthy()
     expect(screen.getByText('1 activité à compléter · total partiel')).toBeTruthy()
-    const activityCard = screen.getByText('Doigt sensible').closest('article')!
-    expect(within(activityCard).getByText('Douleur inhabituelle')).toBeTruthy()
+    const activityCard = screen.getByText('Douleur 4/10').closest('article')!
+    expect(within(activityCard).getByText('Doigts Forte')).toBeTruthy()
   })
 })
