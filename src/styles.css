@@ -284,6 +284,7 @@ input[type='color'] { padding: 3px; }
 .training-duration-input__value, .training-duration-input__times, .training-duration-input__times label { display: grid; min-width: 0; gap: 6px; }
 .training-duration-input__value > span, .training-duration-input__times span { position: absolute; width: 1px; height: 1px; clip-path: inset(50%); overflow: hidden; }
 .training-duration-input__times { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.training-duration-input__times small { grid-column: 1 / -1; }
 .training-duration-input select, .training-duration-input input { width: 100%; min-width: 0; }
 .training-form-field--effort { grid-column: span 3; }
 .training-simple-form--with-context .training-form-field { grid-column: span 2; }
@@ -294,6 +295,7 @@ input[type='color'] { padding: 3px; }
 .training-pain-toggle legend { margin-bottom: 7px; padding: 0; font-weight: 900; }
 .training-simple-form small { font-size: .7rem; font-weight: 800; }
 .training-binary-choice { display: grid; height: 46px; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.training-binary-choice--optional { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .training-binary-choice label { position: relative; display: block; min-width: 0; height: 46px; cursor: pointer; }
 .training-binary-choice input { position: absolute; width: 1px; height: 1px; min-height: 0; margin: 0; clip-path: inset(50%); overflow: hidden; }
 .training-binary-choice span { display: flex; height: 46px; align-items: center; justify-content: center; padding: 8px 10px; border: 2px solid var(--ink); background: var(--paper); box-shadow: 3px 3px 0 var(--ink); font-weight: 900; }

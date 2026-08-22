@@ -78,6 +78,8 @@ export type TrainingSession = {
   location: TrainingLocation
   crag: string | null
   durationMinutes: number | null
+  startTime: string | null
+  endTime: string | null
   perceivedEffort: number | null
   pain: number | null
   createdAt: string

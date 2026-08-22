@@ -52,7 +52,8 @@ describe('TrainingArea', () => {
     expect(screen.getByRole('radio', { name: 'Durée' })).toBeTruthy()
     expect(screen.getByLabelText('Durée de la séance')).toBeTruthy()
     expect(within(screen.getByLabelText('Durée de la séance')).getByRole('option', { name: '1h15' })).toBeTruthy()
-    expect((within(painGroup).getByRole('radio', { name: 'Non' }) as HTMLInputElement).checked).toBe(true)
+    expect((within(painGroup).getByRole('radio', { name: 'Plus tard' }) as HTMLInputElement).checked).toBe(true)
+    expect((within(painGroup).getByRole('radio', { name: 'Non' }) as HTMLInputElement).checked).toBe(false)
     expect((within(painGroup).getByRole('radio', { name: 'Oui' }) as HTMLInputElement).checked).toBe(false)
     await waitFor(() => expect(screen.getByText('Aucune séance enregistrée.')).toBeTruthy())
     expect(screen.getByRole('link', { name: 'Entraînement' }).getAttribute('aria-current')).toBe('page')
@@ -74,35 +75,45 @@ describe('TrainingArea', () => {
     expect(insert).not.toHaveBeenCalledWith(expect.objectContaining({ contrainte_doigts: expect.anything() }))
   })
 
-  it('enregistre immédiatement une séance incomplète puis calcule la durée depuis les horaires', async () => {
+  it('enregistre une heure de début seule sans imposer les questions de charge', async () => {
     render(<TrainingArea user={{ id: 'user-1' } as never} isAdmin={false} isOpener={false} sharesActivity={false} hasTrainingAccess authLoading={false} routes={[]} grades={[]} onSignOut={async () => undefined} />)
     await screen.findByRole('heading', { name: 'Enregistrer ma séance' })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer la séance' }))
-    await waitFor(() => expect(insert).toHaveBeenCalledWith(expect.objectContaining({ duree_minutes: null, effort_percu: null })))
-
-    insert.mockClear()
     fireEvent.click(screen.getByRole('radio', { name: 'Début / fin' }))
     fireEvent.change(screen.getByLabelText('Heure de début'), { target: { value: '18:00' } })
-    fireEvent.change(screen.getByLabelText('Heure de fin'), { target: { value: '19:23' } })
-    fireEvent.change(screen.getByLabelText('RPE'), { target: { value: '7' } })
     fireEvent.click(screen.getByRole('button', { name: 'Enregistrer la séance' }))
-    await waitFor(() => expect(insert).toHaveBeenCalledWith(expect.objectContaining({ duree_minutes: 90, effort_percu: 7 })))
+    await waitFor(() => expect(insert).toHaveBeenCalledWith(expect.objectContaining({ heure_debut: '18:00', heure_fin: null, duree_minutes: null, effort_percu: null, douleur: null })))
   })
 
-  it('complète ensuite une séance avec une durée affichée en heures', async () => {
-    const session = { id: 'session-1', user_id: 'user-1', date_seance: '2026-08-22', type_lieu: 'mur', falaise: null, duree_minutes: null, effort_percu: null, douleur: 0, created_at: '2026-08-22T08:00:00Z' }
+  it('refuse une heure de fin sans heure de début', async () => {
+    render(<TrainingArea user={{ id: 'user-1' } as never} isAdmin={false} isOpener={false} sharesActivity={false} hasTrainingAccess authLoading={false} routes={[]} grades={[]} onSignOut={async () => undefined} />)
+    await screen.findByRole('heading', { name: 'Enregistrer ma séance' })
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Début / fin' }))
+    expect(screen.getByText('Tu peux enregistrer seulement l’heure de début.')).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('Heure de fin'), { target: { value: '20:15' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer la séance' }))
+
+    expect(insert).not.toHaveBeenCalled()
+  })
+
+  it('restaure le début enregistré et calcule la durée quand la fin est ajoutée', async () => {
+    const session = { id: 'session-1', user_id: 'user-1', date_seance: '2026-08-22', type_lieu: 'mur', falaise: null, duree_minutes: null, heure_debut: '18:00:00', heure_fin: null, effort_percu: null, douleur: null, created_at: '2026-08-22T08:00:00Z' }
     from.mockImplementation((table: string) => queryResult(table === 'seances_entrainement' ? [session] : []))
     render(<TrainingArea user={{ id: 'user-1' } as never} isAdmin={false} isOpener={false} sharesActivity={false} hasTrainingAccess authLoading={false} routes={[]} grades={[]} onSignOut={async () => undefined} />)
 
     const card = (await screen.findByText('22/08/2026')).closest('article')!
     expect(within(card).getByText('Séance à compléter')).toBeTruthy()
+    expect(within(card).getByText('18:00 · fin à compléter')).toBeTruthy()
     fireEvent.click(within(card).getByRole('button', { name: 'Modifier ma séance' }))
-    fireEvent.change(within(card).getByLabelText('Durée de la séance'), { target: { value: '75' } })
+    expect((within(card).getByRole('radio', { name: 'Début / fin' }) as HTMLInputElement).checked).toBe(true)
+    expect((within(card).getByLabelText('Heure de début') as HTMLInputElement).value).toBe('18:00')
+    expect((within(card).getByRole('radio', { name: 'Plus tard' }) as HTMLInputElement).checked).toBe(true)
+    fireEvent.change(within(card).getByLabelText('Heure de fin'), { target: { value: '20:15' } })
     fireEvent.change(within(card).getByLabelText('RPE de la séance'), { target: { value: '7' } })
     fireEvent.click(within(card).getByRole('button', { name: 'Enregistrer' }))
 
-    await waitFor(() => expect(update).toHaveBeenCalledWith(expect.objectContaining({ duree_minutes: 75, effort_percu: 7 })))
+    await waitFor(() => expect(update).toHaveBeenCalledWith(expect.objectContaining({ heure_debut: '18:00', heure_fin: '20:15', duree_minutes: 135, effort_percu: 7, douleur: null })))
   })
 
   it('restaure une voie extérieure en cours après avoir quitté la page', async () => {

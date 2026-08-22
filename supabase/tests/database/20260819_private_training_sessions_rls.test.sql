@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(42);
+select plan(48);
 
 select ok(
   not has_table_privilege('anon', 'public.seances_entrainement', 'select'),
@@ -29,6 +29,18 @@ select hasnt_column(
   'seances_entrainement',
   'contrainte_doigts',
   'les séances ne stockent plus de charge des doigts'
+);
+select has_column(
+  'public',
+  'seances_entrainement',
+  'heure_debut',
+  'les séances peuvent conserver une heure de début'
+);
+select has_column(
+  'public',
+  'seances_entrainement',
+  'heure_fin',
+  'les séances peuvent conserver une heure de fin'
 );
 select hasnt_column(
   'public',
@@ -130,6 +142,33 @@ select results_eq(
     where id = '60000000-0000-0000-0000-00000000d001'$$,
   $$values (60::smallint, 7::smallint, 4::smallint)$$,
   'le temps, la RPE et la douleur sont conservés'
+);
+select lives_ok(
+  $$update public.seances_entrainement
+    set heure_debut = '18:00', heure_fin = null, duree_minutes = null
+    where id = '60000000-0000-0000-0000-00000000d001'$$,
+  'une heure de début peut être enregistrée seule'
+);
+select results_eq(
+  $$select to_char(heure_debut, 'HH24:MI'), heure_fin is null, duree_minutes
+    from public.seances_entrainement
+    where id = '60000000-0000-0000-0000-00000000d001'$$,
+  $$values ('18:00'::text, true, null::smallint)$$,
+  'le début reste disponible tant que la séance est incomplète'
+);
+select lives_ok(
+  $$update public.seances_entrainement
+    set heure_fin = '20:15', duree_minutes = 135
+    where id = '60000000-0000-0000-0000-00000000d001'$$,
+  'la fin et la durée calculée complètent la séance'
+);
+select throws_ok(
+  $$update public.seances_entrainement
+    set heure_debut = null, heure_fin = '20:15'
+    where id = '60000000-0000-0000-0000-00000000d001'$$,
+  '23514',
+  null,
+  'une heure de fin sans début est refusée'
 );
 select throws_ok(
   $$update public.seances_entrainement
