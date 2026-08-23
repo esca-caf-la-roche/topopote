@@ -58,6 +58,7 @@ export default function App() {
   const [selectedRoute, setSelectedRoute] = useState<RouteSelection | null>(null)
   const [ownAscents, setOwnAscents] = useState<Record<string, AscentStyle>>({})
   const [hasClimberProfile, setHasClimberProfile] = useState(false)
+  const [profileStatus, setProfileStatus] = useState<'unknown' | 'loading' | 'exists' | 'missing' | 'error'>('unknown')
   const [sharesActivity, setSharesActivity] = useState(false)
   const [hasTrainingAccess, setHasTrainingAccess] = useState(false)
   const [topoActivityLoading, setTopoActivityLoading] = useState(false)
@@ -119,6 +120,7 @@ export default function App() {
       }))
       setColors((colorsResult.data ?? []).map((row) => ({ id: row.id, name: row.nom, hex: row.hex })))
       setGrades((gradesResult.data ?? []).map((row) => ({ id: row.id, label: row.libelle, rank: row.rang, points: row.points, difficulty: row.difficulte })))
+      setMessage((current) => current?.kind === 'error' && current.text.startsWith('Impossible de charger le topo :') ? null : current)
     } catch (error) {
       setMessage({ kind: 'error', text: `Impossible de charger le topo : ${errorMessage(error)}` })
     } finally {
@@ -133,6 +135,7 @@ export default function App() {
       setUser(null)
       setIsAdmin(false)
       setIsOpener(false)
+      setProfileStatus('unknown')
       setAuthLoading(false)
       return
     }
@@ -149,6 +152,7 @@ export default function App() {
     setUser(roles.user)
     setIsAdmin(roles.isAdmin)
     setIsOpener(roles.isOpener)
+    setProfileStatus('loading')
     setAuthLoading(false)
 
     const error = roles.error
@@ -159,9 +163,13 @@ export default function App() {
     void loadTopo()
     if (!supabase) return
 
-    void supabase.auth.getUser().then(({ data }) => refreshRoles(data.user))
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-      void refreshRoles(session?.user ?? null)
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
+      // Supabase warns that API calls made synchronously from this callback can
+      // deadlock the client. Defer role lookups and authenticated topo retries.
+      window.setTimeout(() => {
+        void refreshRoles(session?.user ?? null)
+        if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') void loadTopo()
+      }, 0)
     })
     return () => data.subscription.unsubscribe()
   }, [loadTopo, refreshRoles])
@@ -183,10 +191,12 @@ export default function App() {
       setHasClimberProfile(false)
       setSharesActivity(false)
       setHasTrainingAccess(false)
+      setProfileStatus('unknown')
       setTopoActivityLoading(false)
       return
     }
     setTopoActivityLoading(true)
+    setProfileStatus('loading')
     setHasTrainingAccess(false)
     const [profileResult, ascentsResult] = await Promise.all([
       supabase.from('profils').select('user_id, partage_activite, acces_entrainement').eq('user_id', user.id).maybeSingle(),
@@ -196,10 +206,12 @@ export default function App() {
     const error = profileResult.error || ascentsResult.error
     if (error) {
       setTopoActivityLoading(false)
+      setProfileStatus('error')
       setMessage({ kind: 'error', text: `Impossible de charger tes enchaînements : ${error.message}` })
       return
     }
     setHasClimberProfile(Boolean(profileResult.data))
+    setProfileStatus(profileResult.data ? 'exists' : 'missing')
     setSharesActivity(profileResult.data?.partage_activite ?? false)
     setHasTrainingAccess(profileResult.data?.acces_entrainement ?? false)
     setOwnAscents(Object.fromEntries((ascentsResult.data ?? []).map((row) => [row.voie_id, row.style as AscentStyle])))
@@ -207,6 +219,12 @@ export default function App() {
   }, [user])
 
   useEffect(() => { void loadTopoActivity() }, [loadTopoActivity, page])
+
+  useEffect(() => {
+    if (user && !authLoading && profileStatus === 'missing' && page !== 'carnet') {
+      window.location.hash = 'carnet'
+    }
+  }, [authLoading, page, profileStatus, user])
 
   useEffect(() => {
     const updatePage = () => setPage(window.location.hash.replace('#', ''))
@@ -301,6 +319,22 @@ export default function App() {
     }
   }, [authLoading, isAdmin])
 
+  if (user && !authLoading && profileStatus === 'missing' && page !== 'carnet') {
+    return (
+      <ClimberArea
+        page="carnet"
+        user={user}
+        isAdmin={isAdmin}
+        isOpener={isOpener}
+        authLoading={false}
+        routes={routes}
+        seasons={seasons}
+        onProfileChanged={loadTopoActivity}
+        onSignOut={signOut}
+      />
+    )
+  }
+
   if (page === 'admin') {
     return (
       <AdminPage
@@ -354,6 +388,7 @@ export default function App() {
         authLoading={authLoading}
         routes={routes}
         seasons={seasons}
+        onProfileChanged={loadTopoActivity}
         onSignOut={signOut}
       />
     )

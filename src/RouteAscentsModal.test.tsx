@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
-import { render, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import RouteAscentsModal from './RouteAscentsModal'
 import type { Route } from './types'
 
@@ -24,7 +24,33 @@ const route: Route = {
   grade: { id: 'grade-1', label: '6b', rank: 10, points: 500, difficulty: 'Difficile' },
 }
 
+afterEach(cleanup)
+
 describe('RouteAscentsModal', () => {
+  it('démarre à un essai à vue puis retire à vue et flash au deuxième essai', async () => {
+    render(<RouteAscentsModal
+      route={route}
+      mode="add"
+      hasProfile
+      sharesActivity={false}
+      onClose={() => undefined}
+      onAscentCreated={async () => undefined}
+      onFeedback={() => undefined}
+    />)
+
+    const attempts = screen.getByLabelText('Nombre d’essais') as HTMLInputElement
+    expect(attempts.value).toBe('1')
+    expect((screen.getByRole('radio', { name: /À vue/ }) as HTMLInputElement).checked).toBe(true)
+    expect(screen.getByRole('radio', { name: /Flash/ })).toBeTruthy()
+
+    fireEvent.change(attempts, { target: { value: '2' } })
+
+    expect(screen.queryByRole('radio', { name: /À vue/ })).toBeNull()
+    expect(screen.queryByRole('radio', { name: /Flash/ })).toBeNull()
+    expect((screen.getByRole('radio', { name: /Après travail/ }) as HTMLInputElement).checked).toBe(true)
+    await waitFor(() => expect(screen.getByText('Aucun enchaînement partagé pour cette voie.')).toBeTruthy())
+  })
+
   it('préremplit le premier enchaînement depuis une séance', async () => {
     render(<RouteAscentsModal
       route={route}

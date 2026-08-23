@@ -177,8 +177,8 @@ function RouteAscentForm({ route, sharesActivity, prefill, onSaved, onFeedback }
   onFeedback: (feedback: Feedback) => void
 }) {
   const [climbedAt, setClimbedAt] = useState(prefill?.climbedAt ?? localDate)
-  const [style, setStyle] = useState<AscentStyle>(prefill?.style ?? 'apres_travail')
-  const [attempts, setAttempts] = useState(prefill?.attempts ?? 2)
+  const [style, setStyle] = useState<AscentStyle>(prefill?.style ?? 'a_vue')
+  const [attempts, setAttempts] = useState(prefill?.attempts ?? 1)
   const [rating, setRating] = useState(0)
   const [feeling, setFeeling] = useState<GradeFeeling>('conforme')
   const [comment, setComment] = useState('')
@@ -219,8 +219,8 @@ function RouteAscentForm({ route, sharesActivity, prefill, onSaved, onFeedback }
     <p className="section-kicker">Ta croix</p><h3>Ajouter mon enchaînement</h3>
     <form className="stack" onSubmit={submit}>
       <label><span>Date</span><input type="date" required max={localDate()} value={climbedAt} onChange={(event) => setClimbedAt(event.target.value)} /></label>
+      <label><span>Nombre d’essais</span><input type="number" min={1} max={999} required value={attempts} onChange={(event) => setAttempts(Number(event.target.value))} /></label>
       <fieldset className="choice-fieldset"><legend>Type d’enchaînement</legend><div className="style-choices">{allowedStyles.map((value) => <label className={selectedStyle === value ? 'is-selected' : ''} key={value}><input type="radio" name="route-style" checked={selectedStyle === value} onChange={() => setStyle(value)} /><span className={`style-dot style-dot--${value}`} /><strong>{styleLabels[value]}</strong></label>)}</div></fieldset>
-      {selectedStyle !== 'a_vue' && selectedStyle !== 'flash' && <label><span>Nombre d’essais</span><input type="number" min={1} max={999} required value={attempts} onChange={(event) => setAttempts(Number(event.target.value))} /></label>}
       <fieldset className="choice-fieldset"><legend>Nombre d’étoiles</legend><div className="rating-row">{[1, 2, 3, 4, 5].map((value) => <button type="button" className={rating >= value ? 'is-selected' : ''} aria-label={`${value} étoile${value > 1 ? 's' : ''}${rating === value ? ', retirer la note' : ''}`} aria-pressed={rating === value} onClick={() => setRating((current) => current === value ? 0 : value)} key={value}>★</button>)}</div></fieldset>
       <fieldset className="choice-fieldset"><legend>Cotation ressentie</legend><div className="feeling-choices">{(Object.entries(gradeFeelingLabels) as [GradeFeeling, string][]).map(([value, label]) => <label className={feeling === value ? 'is-selected' : ''} key={value}><input type="radio" name="route-feeling" checked={feeling === value} onChange={() => setFeeling(value)} /><span>{label}</span></label>)}</div></fieldset>
       <label><span>Commentaire facultatif</span><textarea maxLength={500} rows={3} value={comment} onChange={(event) => setComment(event.target.value)} /></label>

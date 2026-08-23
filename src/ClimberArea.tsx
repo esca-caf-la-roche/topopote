@@ -5,6 +5,7 @@ import { isSupabaseConfigured, supabase } from './lib/supabase'
 import PrimaryNav from './PrimaryNav'
 import { profileErrorMessage } from './lib/databaseErrors'
 import { usePendingAction } from './lib/usePendingAction'
+import { allowedAscentStyles } from './lib/training'
 import type { Ascent, AscentStyle, ClimberProfile, GradeFeeling, LeaderboardEntry, Route, Season } from './types'
 
 type Feedback = { kind: 'error' | 'success'; text: string } | null
@@ -51,7 +52,7 @@ function localDate() {
   const pad = (value: number) => String(value).padStart(2, '0')
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
 }
-export default function ClimberArea({ page, user, isAdmin, isOpener, authLoading, routes, seasons, onSignOut }: {
+export default function ClimberArea({ page, user, isAdmin, isOpener, authLoading, routes, seasons, onProfileChanged, onSignOut }: {
   page: 'carnet' | 'classement'
   user: User | null
   isAdmin: boolean
@@ -59,6 +60,7 @@ export default function ClimberArea({ page, user, isAdmin, isOpener, authLoading
   authLoading: boolean
   routes: Route[]
   seasons: Season[]
+  onProfileChanged: () => Promise<void>
   onSignOut: () => Promise<void>
 }) {
   const activeSeason = seasons.find((season) => season.active) ?? null
@@ -141,7 +143,7 @@ export default function ClimberArea({ page, user, isAdmin, isOpener, authLoading
           : loading && !profile ? <p className="empty-state">Chargement du carnet…</p>
             : !profile ? isAdmin
               ? <p className="empty-state message--error">Le profil privé de l’administrateur est introuvable. Recharge la page ou contacte le support.</p>
-              : <ProfileSetup user={user} onCreated={loadPersonalData} onFeedback={setFeedback} />
+              : <ProfileSetup user={user} onCreated={async () => { await Promise.all([loadPersonalData(), onProfileChanged()]) }} onFeedback={setFeedback} />
             : <Logbook profile={profile} activeSeason={activeSeason} selectedSeasonId={selectedSeasonId} seasons={seasons} routes={routes} ascents={ascents} loading={loading} leaderboard={leaderboard} onSeasonChange={setSelectedSeasonId} onChanged={reload} onFeedback={setFeedback} onSignOut={onSignOut} />}
     </div>
   )
@@ -152,11 +154,14 @@ function AuthPanel({ onFeedback }: { onFeedback: (feedback: Feedback) => void })
   const [email, setEmail] = useState(pendingEmail); const [otp, setOtp] = useState(''); const [sent, setSent] = useState(Boolean(pendingEmail)); const [busy, setBusy] = useState(false)
   async function submit(event: FormEvent) {
     event.preventDefault(); setBusy(true)
-    const { error } = sent ? await supabase!.auth.verifyOtp({ email, token: otp, type: 'email' }) : await supabase!.auth.signInWithOtp({ email, options: { shouldCreateUser: true } })
+    const result = sent
+      ? await supabase!.auth.verifyOtp({ email, token: otp, type: 'email' })
+      : await supabase!.auth.signInWithOtp({ email, options: { shouldCreateUser: true } })
     setBusy(false)
-    if (error) return onFeedback({ kind: 'error', text: error.message })
+    if (result.error) return onFeedback({ kind: 'error', text: result.error.message })
     if (!sent) { savePendingOtpEmail(email); setSent(true); onFeedback({ kind: 'success', text: 'Code envoyé. Consulte ta boîte mail.' }) }
-    else { clearPendingOtpEmail(); window.location.hash = ''; onFeedback({ kind: 'success', text: 'Bienvenue dans Topopote !' }) }
+    else if (!('session' in result.data) || !result.data.session) onFeedback({ kind: 'error', text: 'La session n’a pas pu être ouverte. Demande un nouveau code.' })
+    else { clearPendingOtpEmail(); window.location.hash = 'carnet'; onFeedback({ kind: 'success', text: 'Bienvenue dans Topopote !' }) }
   }
   function changeEmail() {
     clearPendingOtpEmail(); setSent(false); setOtp(''); onFeedback(null)
@@ -213,18 +218,20 @@ function ProfileSettings({ profile, onChanged, onFeedback }: { profile: ClimberP
 
 function AscentForm({ userId, activeSeason, routes, ascents, onChanged, onFeedback }: { userId: string; activeSeason: Season | null; routes: Route[]; ascents: Ascent[]; onChanged: () => Promise<void>; onFeedback: (feedback: Feedback) => void }) {
   const availableRoutes = routes.filter((route) => route.seasonId === activeSeason?.id && !ascents.some((ascent) => ascent.routeId === route.id))
-  const [routeId, setRouteId] = useState(''); const [climbedAt, setClimbedAt] = useState(localDate); const [style, setStyle] = useState<AscentStyle>('apres_travail'); const [attempts, setAttempts] = useState(2); const [rating, setRating] = useState(0); const [recommended, setRecommended] = useState(false); const [feeling, setFeeling] = useState<GradeFeeling>('conforme'); const [comment, setComment] = useState('')
+  const [routeId, setRouteId] = useState(''); const [climbedAt, setClimbedAt] = useState(localDate); const [style, setStyle] = useState<AscentStyle>('a_vue'); const [attempts, setAttempts] = useState(1); const [rating, setRating] = useState(0); const [recommended, setRecommended] = useState(false); const [feeling, setFeeling] = useState<GradeFeeling>('conforme'); const [comment, setComment] = useState('')
   const { pending, run } = usePendingAction()
-  const route = routes.find((candidate) => candidate.id === routeId); const finalAttempts = style === 'a_vue' || style === 'flash' ? 1 : attempts
+  const route = routes.find((candidate) => candidate.id === routeId)
+  const allowedStyles = allowedAscentStyles(attempts)
+  const selectedStyle = allowedStyles.includes(style) ? style : allowedStyles[0]
   async function submit(event: FormEvent) {
     event.preventDefault(); if (!route) return
     await run(async () => {
-      const { error } = await supabase!.from('enchainements').insert({ user_id: userId, voie_id: routeId, saison_id: route.seasonId, date_enchainement: climbedAt, style, essais: finalAttempts, ressenti_cotation: feeling, note: rating || null, recommande: recommended, commentaire: comment || null })
+      const { error } = await supabase!.from('enchainements').insert({ user_id: userId, voie_id: routeId, saison_id: route.seasonId, date_enchainement: climbedAt, style: selectedStyle, essais: attempts, ressenti_cotation: feeling, note: rating || null, recommande: recommended, commentaire: comment || null })
       if (error) return onFeedback({ kind: 'error', text: error.code === '23505' ? 'Cette voie est déjà dans ton carnet.' : error.message })
-      onFeedback({ kind: 'success', text: `Enchaînement enregistré : ${ascentPoints(route.grade.points, style, finalAttempts)} points.` }); await onChanged()
+      onFeedback({ kind: 'success', text: `Enchaînement enregistré : ${ascentPoints(route.grade.points, selectedStyle, attempts)} points.` }); await onChanged()
     })
   }
-  return <section className="ascent-form"><p className="section-kicker">Nouvelle croix</p><h2>Enregistrer une voie</h2><p>Saison : <strong>{activeSeason?.name ?? 'aucune'}</strong></p><form className="stack" onSubmit={submit}><div className="form-grid"><label><span>Voie</span><select required value={routeId} onChange={(event) => setRouteId(event.target.value)}><option value="">Choisir relais, couleur et cotation</option>{availableRoutes.map((item) => <option value={item.id} key={item.id}>Relais {item.relay.number} · {item.color.name} · {item.grade.label}{item.isHalfRoute ? ' · 1/2' : ''}</option>)}</select></label><label><span>Date</span><input type="date" required max={localDate()} value={climbedAt} onChange={(event) => setClimbedAt(event.target.value)} /></label></div><fieldset className="choice-fieldset"><legend>Comment l’as-tu grimpée ?</legend><div className="style-choices">{(Object.keys(styleLabels) as AscentStyle[]).map((value) => <label className={style === value ? 'is-selected' : ''} key={value}><input type="radio" name="style" checked={style === value} onChange={() => setStyle(value)} /><span className={`style-dot style-dot--${value}`} /><strong>{styleLabels[value]}</strong></label>)}</div></fieldset>{style !== 'a_vue' && style !== 'flash' && <label><span>Nombre d’essais</span><input type="number" min={1} max={999} required value={attempts} onChange={(event) => setAttempts(Number(event.target.value))} /></label>}<fieldset className="choice-fieldset"><legend>Ton avis</legend><div className="rating-row">{[1, 2, 3, 4, 5].map((value) => <button type="button" className={rating >= value ? 'is-selected' : ''} aria-label={`${value} étoile${value > 1 ? 's' : ''}${rating === value ? ', retirer la note' : ''}`} aria-pressed={rating === value} onClick={() => setRating((current) => current === value ? 0 : value)} key={value}>★</button>)}</div><label className="checkbox-label"><input type="checkbox" checked={recommended} onChange={(event) => setRecommended(event.target.checked)} /><span>Je recommande cette voie</span></label></fieldset><fieldset className="choice-fieldset"><legend>Cotation ressentie</legend><div className="feeling-choices">{([['souple', 'Plus facile'], ['conforme', 'Conforme'], ['dure', 'Plus dure']] as const).map(([value, label]) => <label className={feeling === value ? 'is-selected' : ''} key={value}><input type="radio" name="feeling" checked={feeling === value} onChange={() => setFeeling(value)} /><span>{label}</span></label>)}</div></fieldset><label><span>Commentaire facultatif</span><textarea maxLength={500} rows={4} value={comment} onChange={(event) => setComment(event.target.value)} /></label><p className="privacy-note">Les ouvreurs et administrateurs peuvent consulter anonymement ce retour, même lorsque le partage communautaire est désactivé.</p><div className="score-preview"><span>Score potentiel</span><strong>{route ? ascentPoints(route.grade.points, style, finalAttempts) : 0} pts</strong></div><button className="button button--accent" disabled={pending || !activeSeason || !routeId}>{pending ? 'Enregistrement…' : 'Enregistrer'}</button></form></section>
+  return <section className="ascent-form"><p className="section-kicker">Nouvelle croix</p><h2>Enregistrer une voie</h2><p>Saison : <strong>{activeSeason?.name ?? 'aucune'}</strong></p><form className="stack" onSubmit={submit}><div className="form-grid"><label><span>Voie</span><select required value={routeId} onChange={(event) => setRouteId(event.target.value)}><option value="">Choisir relais, couleur et cotation</option>{availableRoutes.map((item) => <option value={item.id} key={item.id}>Relais {item.relay.number} · {item.color.name} · {item.grade.label}{item.isHalfRoute ? ' · 1/2' : ''}</option>)}</select></label><label><span>Date</span><input type="date" required max={localDate()} value={climbedAt} onChange={(event) => setClimbedAt(event.target.value)} /></label></div><label><span>Nombre d’essais</span><input type="number" min={1} max={999} required value={attempts} onChange={(event) => setAttempts(Number(event.target.value))} /></label><fieldset className="choice-fieldset"><legend>Comment l’as-tu grimpée ?</legend><div className="style-choices">{allowedStyles.map((value) => <label className={selectedStyle === value ? 'is-selected' : ''} key={value}><input type="radio" name="style" checked={selectedStyle === value} onChange={() => setStyle(value)} /><span className={`style-dot style-dot--${value}`} /><strong>{styleLabels[value]}</strong></label>)}</div></fieldset><fieldset className="choice-fieldset"><legend>Ton avis</legend><div className="rating-row">{[1, 2, 3, 4, 5].map((value) => <button type="button" className={rating >= value ? 'is-selected' : ''} aria-label={`${value} étoile${value > 1 ? 's' : ''}${rating === value ? ', retirer la note' : ''}`} aria-pressed={rating === value} onClick={() => setRating((current) => current === value ? 0 : value)} key={value}>★</button>)}</div><label className="checkbox-label"><input type="checkbox" checked={recommended} onChange={(event) => setRecommended(event.target.checked)} /><span>Je recommande cette voie</span></label></fieldset><fieldset className="choice-fieldset"><legend>Cotation ressentie</legend><div className="feeling-choices">{([['souple', 'Plus facile'], ['conforme', 'Conforme'], ['dure', 'Plus dure']] as const).map(([value, label]) => <label className={feeling === value ? 'is-selected' : ''} key={value}><input type="radio" name="feeling" checked={feeling === value} onChange={() => setFeeling(value)} /><span>{label}</span></label>)}</div></fieldset><label><span>Commentaire facultatif</span><textarea maxLength={500} rows={4} value={comment} onChange={(event) => setComment(event.target.value)} /></label><p className="privacy-note">Les ouvreurs et administrateurs peuvent consulter anonymement ce retour, même lorsque le partage communautaire est désactivé.</p><div className="score-preview"><span>Score potentiel</span><strong>{route ? ascentPoints(route.grade.points, selectedStyle, attempts) : 0} pts</strong></div><button className="button button--accent" disabled={pending || !activeSeason || !routeId}>{pending ? 'Enregistrement…' : 'Enregistrer'}</button></form></section>
 }
 
 function AscentRow({ ascent, onChanged, onFeedback }: { ascent: Ascent; onChanged: () => Promise<void>; onFeedback: (feedback: Feedback) => void }) {
