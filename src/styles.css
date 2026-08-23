@@ -288,12 +288,14 @@ input[type='color'] { padding: 3px; }
 .training-duration-input select, .training-duration-input input { width: 100%; min-width: 0; }
 .training-form-field--effort { grid-column: span 3; }
 .training-simple-form--with-context .training-form-field { grid-column: span 2; }
-.training-form-pain { grid-column: span 3; }
-.training-form-field--pain-level { grid-column: span 2; }
-.training-form-field--pain-detail, .training-simple-form--with-context .training-form-field--pain-detail { grid-column: span 3; }
 .training-simple-form__submit { grid-column: span 3; justify-self: start; }
-.training-pain-toggle { min-width: 0; margin: 0; padding: 0; border: 0; }
-.training-pain-toggle legend { margin-bottom: 7px; padding: 0; font-weight: 900; }
+.training-pain-panel { display: grid; grid-column: 1 / -1; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 12px; align-items: end; min-width: 0; margin: 0; padding: 10px 14px 14px; border: 3px solid var(--ink); background: #ffd8f6; }
+.training-pain-panel legend { padding: 0 6px; font-family: 'Archivo Black', sans-serif; font-size: .78rem; text-transform: uppercase; }
+.training-pain-toggle { grid-column: span 3; min-width: 0; }
+.training-pain-toggle__label, .training-pain-panel__field > span { display: block; margin-bottom: 7px; font-weight: 900; }
+.training-pain-panel__field { display: grid; grid-column: span 3; min-width: 0; align-self: end; }
+.training-pain-panel__field--level { grid-column: span 2; }
+.training-pain-panel__field input, .training-pain-panel__field select { width: 100%; min-width: 0; }
 .training-simple-form small { font-size: .7rem; font-weight: 800; }
 .training-binary-choice { display: grid; height: 46px; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
 .training-binary-choice--optional { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -335,11 +337,10 @@ input[type='color'] { padding: 3px; }
 .session-load__edit { align-self: start; background: var(--blue); }
 .training-load-edit { display: grid; grid-column: 1 / -1; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 12px; align-items: end; padding: 14px; border: 2px solid var(--ink); background: var(--paper); }
 .training-load-edit > label { display: grid; min-width: 0; gap: 6px; font-weight: 900; }
-.training-load-edit > .training-duration-input { grid-column: span 4; }
-.training-load-edit .button { grid-column: span 2; }
-.training-load-edit__effort, .training-load-edit > .training-pain-toggle { grid-column: span 3; }
-.training-load-edit--with-pain > label, .training-load-edit--with-pain > .training-pain-toggle, .training-load-edit--with-pain .button { grid-column: span 2; }
-.training-load-edit .button { align-self: end; }
+.training-load-edit > .training-duration-input { grid-column: 1 / span 4; grid-row: 1; }
+.training-load-edit__effort { grid-column: 5 / span 3; grid-row: 1; }
+.training-load-edit > .training-pain-panel { grid-column: 1 / -1; grid-row: 2; }
+.training-load-edit > .button { grid-column: 8 / span 2; grid-row: 1; align-self: end; }
 .session-load__legacy { display: flex; grid-column: 1 / -1; gap: 8px 14px; align-items: center; flex-wrap: wrap; padding-top: 3px; font-size: .72rem; }
 .session-load__legacy strong { text-transform: uppercase; }
 .session-load__context { display: grid; grid-column: 1 / -1; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
@@ -555,8 +556,11 @@ input[type='color'] { padding: 3px; }
 
 @media (max-width: 980px) {
   .training-load-edit { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .training-load-edit > label, .training-load-edit > .training-pain-toggle, .training-load-edit .button, .training-load-edit--with-pain > label, .training-load-edit--with-pain > .training-pain-toggle, .training-load-edit--with-pain .button { grid-column: span 1; }
-  .training-load-edit .button { grid-column: 1 / -1; }
+  .training-load-edit > .training-duration-input, .training-load-edit__effort { grid-column: span 1; grid-row: auto; }
+  .training-load-edit > .training-pain-panel { grid-column: 1 / -1; grid-row: auto; }
+  .training-load-edit > .button { grid-column: 1 / -1; grid-row: auto; }
+  .training-pain-panel { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .training-pain-toggle, .training-pain-panel__field, .training-pain-panel__field--level { grid-column: span 1; }
 }
 
 
@@ -610,7 +614,7 @@ input[type='color'] { padding: 3px; }
   .auth-card, .ascent-form { padding: 20px; box-shadow: 6px 6px 0 var(--ink); }
   .training-access-denied, .training-session-form, .training-activity-form, .training-load-dashboard { padding: 20px; box-shadow: 6px 6px 0 var(--ink); }
   .training-simple-form { grid-template-columns: 1fr; }
-  .training-form-field, .training-simple-form--with-context .training-form-field, .training-duration-input, .training-form-pain, .training-simple-form__submit { grid-column: 1; }
+  .training-form-field, .training-simple-form--with-context .training-form-field, .training-duration-input, .training-pain-panel, .training-simple-form__submit { grid-column: 1; }
   .training-simple-form__submit { width: 100%; }
   .training-session-card > header { flex-direction: column; }
   .training-session-card > header .admin-actions { width: 100%; }
@@ -618,7 +622,9 @@ input[type='color'] { padding: 3px; }
   .session-load, .session-load__inputs, .session-load__context { grid-template-columns: 1fr; padding: 14px; }
   .session-load__edit { width: 100%; }
   .training-load-edit { grid-template-columns: 1fr; }
-  .training-load-edit > label, .training-load-edit > .training-pain-toggle, .training-load-edit .button, .training-load-edit--with-pain > label, .training-load-edit--with-pain > .training-pain-toggle, .training-load-edit--with-pain .button { grid-column: 1; }
+  .training-load-edit > .training-duration-input, .training-load-edit__effort, .training-load-edit > .training-pain-panel, .training-load-edit > .button { grid-column: 1; }
+  .training-pain-panel { grid-template-columns: 1fr; }
+  .training-pain-toggle, .training-pain-panel__field, .training-pain-panel__field--level { grid-column: 1; }
   .session-load__inputs { padding: 0; }
   .session-load__context { padding: 0; }
   .training-activity-card { grid-template-columns: minmax(0, 1fr) auto; }

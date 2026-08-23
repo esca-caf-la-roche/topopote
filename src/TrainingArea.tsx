@@ -355,27 +355,25 @@ function resolveDuration(mode: DurationMode, duration: string, startTime: string
 }
 
 function PainToggle({ name, answer, onChange }: { name: string; answer: PainAnswer; onChange: (answer: PainAnswer) => void }) {
-  return <fieldset className="training-pain-toggle"><legend>Douleurs</legend><div className="training-binary-choice training-binary-choice--optional">
+  return <div className="training-pain-toggle"><span className="training-pain-toggle__label">Présence</span><div className="training-binary-choice training-binary-choice--optional">
     <label><input type="radio" name={name} checked={answer === 'later'} onChange={() => onChange('later')} /><span>Plus tard</span></label>
     <label><input type="radio" name={name} checked={answer === 'no'} onChange={() => onChange('no')} /><span>Non</span></label>
     <label><input type="radio" name={name} checked={answer === 'yes'} onChange={() => onChange('yes')} /><span>Oui</span></label>
-  </div></fieldset>
+  </div></div>
 }
 
-function PainDetails({ idPrefix, painLocation, painType, painLocations, onPainLocationChange, onPainTypeChange, compact = false }: {
+function PainDetails({ idPrefix, painLocation, painType, painLocations, onPainLocationChange, onPainTypeChange }: {
   idPrefix: string
   painLocation: string
   painType: PainType | ''
   painLocations: string[]
   onPainLocationChange: (location: string) => void
   onPainTypeChange: (painType: PainType | '') => void
-  compact?: boolean
 }) {
   const listId = `${idPrefix}-locations`
-  const fieldClass = compact ? 'training-load-edit__pain-detail' : 'training-form-field training-form-field--pain-detail'
   return <>
-    <label className={fieldClass}><span>Partie du corps</span><input aria-label="Partie du corps douloureuse" type="text" required maxLength={100} list={listId} placeholder="Ex. coude droit" value={painLocation} onChange={(event) => onPainLocationChange(event.target.value)} /><datalist id={listId}>{painLocations.map((location) => <option value={location} key={location} />)}</datalist></label>
-    <label className={fieldClass}><span>Type de douleur</span><select aria-label="Type de douleur" required value={painType} onChange={(event) => onPainTypeChange(event.target.value as PainType | '')}><option value="">Choisir</option>{painTypeOptions.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}</select></label>
+    <label className="training-pain-panel__field"><span>Partie du corps</span><input aria-label="Partie du corps douloureuse" type="text" required maxLength={100} list={listId} placeholder="Ex. coude droit" value={painLocation} onChange={(event) => onPainLocationChange(event.target.value)} /><datalist id={listId}>{painLocations.map((location) => <option value={location} key={location} />)}</datalist></label>
+    <label className="training-pain-panel__field"><span>Type de douleur</span><select aria-label="Type de douleur" required value={painType} onChange={(event) => onPainTypeChange(event.target.value as PainType | '')}><option value="">Choisir</option>{painTypeOptions.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}</select></label>
   </>
 }
 
@@ -475,9 +473,11 @@ function SessionForm({ sessions, painLocations, onCreated, onFeedback }: { sessi
     {activity === 'autre' && <label className="training-form-field training-form-field--context"><span>Type d’activité</span><select aria-label="Type d’activité" value={activityType} onChange={(event) => setActivityType(event.target.value as TrainingActivityType)}>{simpleActivityTypes.map((value) => <option value={value} key={value}>{activityLabels[value]}</option>)}</select></label>}
     <DurationInput name="duration-mode" mode={durationMode} duration={duration} startTime={startTime} endTime={endTime} optional={activity !== 'autre'} onModeChange={setDurationMode} onDurationChange={setDuration} onStartTimeChange={setStartTime} onEndTimeChange={setEndTime} />
     <label className="training-form-field training-form-field--effort"><span>RPE</span><select aria-label="RPE" required={activity === 'autre'} value={effort} onChange={(event) => setEffort(event.target.value)}><option value="">{activity === 'autre' ? 'Choisir' : 'À compléter plus tard'}</option>{effortLabels.map((label, index) => <option value={index + 1} key={index + 1}>{index + 1} — {label}</option>)}</select></label>
-    <div className="training-form-pain"><PainToggle name="pain" answer={painAnswer} onChange={(value) => { setPainAnswer(value); if (value !== 'yes') { setPain(''); setPainLocation(''); setPainType('') } }} /></div>
-    {painAnswer === 'yes' && <label className="training-form-field training-form-field--pain-level"><span>Douleur (1–10)</span><input aria-label="Douleur de 1 à 10" type="number" min="1" max="10" required value={pain} onChange={(event) => setPain(event.target.value)} /></label>}
-    {painAnswer === 'yes' && <PainDetails idPrefix="new-pain" painLocation={painLocation} painType={painType} painLocations={painLocations} onPainLocationChange={setPainLocation} onPainTypeChange={setPainType} />}
+    <fieldset className="training-pain-panel"><legend>Douleurs</legend>
+      <PainToggle name="pain" answer={painAnswer} onChange={(value) => { setPainAnswer(value); if (value !== 'yes') { setPain(''); setPainLocation(''); setPainType('') } }} />
+      {painAnswer === 'yes' && <label className="training-pain-panel__field training-pain-panel__field--level"><span>Douleur (1–10)</span><input aria-label="Douleur de 1 à 10" type="number" min="1" max="10" required value={pain} onChange={(event) => setPain(event.target.value)} /></label>}
+      {painAnswer === 'yes' && <PainDetails idPrefix="new-pain" painLocation={painLocation} painType={painType} painLocations={painLocations} onPainLocationChange={setPainLocation} onPainTypeChange={setPainType} />}
+    </fieldset>
     <button className="button button--accent training-simple-form__submit" disabled={pending}>{pending ? 'Enregistrement…' : 'Enregistrer la séance'}</button>
   </form></section>
 }
@@ -562,7 +562,16 @@ function SessionLoad({ session, entries, painLocations, onChange }: { session: T
     </div>
     <div className="session-load__details"><p>Ressenti et volume</p><div className="training-simple-tags">{session.startTime && <span>{session.startTime}{session.endTime ? ` → ${session.endTime}` : ' · fin à compléter'}</span>}<span className={session.pain ? 'is-pain' : ''}>{painLabel(session.pain)}</span>{session.painLocation && <span>{session.painLocation}</span>}{session.painType && <span>{painTypeLabel(session.painType)}</span>}</div><div className="session-load__volume" aria-label="Volume enregistré"><span><strong>{volume.routes}</strong> voie{volume.routes > 1 ? 's' : ''}</span><span><strong>{volume.attempts}</strong> essai{volume.attempts > 1 ? 's' : ''}</span><span><strong>{volume.sends}</strong> enchaînement{volume.sends > 1 ? 's' : ''}</span></div></div>
     <button className="button button--small session-load__edit" type="button" onClick={() => setEditing((value) => !value)}>{editing ? 'Annuler' : 'Modifier ma séance'}</button>
-    {editing && <form className={`training-load-edit${painAnswer === 'yes' ? ' training-load-edit--with-pain' : ''}`} onSubmit={save}><DurationInput compact name={`edit-duration-mode-${session.id}`} mode={durationMode} duration={duration} startTime={startTime} endTime={endTime} optional onModeChange={setDurationMode} onDurationChange={setDuration} onStartTimeChange={setStartTime} onEndTimeChange={setEndTime} /><label className="training-load-edit__effort"><span>RPE</span><select aria-label="RPE de la séance" value={effort} onChange={(event) => setEffort(event.target.value)}><option value="">À compléter plus tard</option>{effortLabels.map((label, index) => <option value={index + 1} key={index + 1}>{index + 1} — {label}</option>)}</select></label><PainToggle name={`edit-pain-${session.id}`} answer={painAnswer} onChange={(value) => { setPainAnswer(value); if (value !== 'yes') { setPain(''); setPainLocation(''); setPainType('') } }} />{painAnswer === 'yes' && <label className="training-load-edit__pain-level"><span>Douleur (1–10)</span><input aria-label="Douleur (1–10)" type="number" min="1" max="10" required value={pain} onChange={(event) => setPain(event.target.value)} /></label>}{painAnswer === 'yes' && <PainDetails compact idPrefix={`edit-pain-${session.id}`} painLocation={painLocation} painType={painType} painLocations={painLocations} onPainLocationChange={setPainLocation} onPainTypeChange={setPainType} />}<button className="button button--accent" disabled={saving}>{saving ? 'Enregistrement…' : 'Enregistrer'}</button></form>}
+    {editing && <form className="training-load-edit" onSubmit={save}>
+      <DurationInput compact name={`edit-duration-mode-${session.id}`} mode={durationMode} duration={duration} startTime={startTime} endTime={endTime} optional onModeChange={setDurationMode} onDurationChange={setDuration} onStartTimeChange={setStartTime} onEndTimeChange={setEndTime} />
+      <label className="training-load-edit__effort"><span>RPE</span><select aria-label="RPE de la séance" value={effort} onChange={(event) => setEffort(event.target.value)}><option value="">À compléter plus tard</option>{effortLabels.map((label, index) => <option value={index + 1} key={index + 1}>{index + 1} — {label}</option>)}</select></label>
+      <fieldset className="training-pain-panel"><legend>Douleurs</legend>
+        <PainToggle name={`edit-pain-${session.id}`} answer={painAnswer} onChange={(value) => { setPainAnswer(value); if (value !== 'yes') { setPain(''); setPainLocation(''); setPainType('') } }} />
+        {painAnswer === 'yes' && <label className="training-pain-panel__field training-pain-panel__field--level"><span>Douleur (1–10)</span><input aria-label="Douleur (1–10)" type="number" min="1" max="10" required value={pain} onChange={(event) => setPain(event.target.value)} /></label>}
+        {painAnswer === 'yes' && <PainDetails idPrefix={`edit-pain-${session.id}`} painLocation={painLocation} painType={painType} painLocations={painLocations} onPainLocationChange={setPainLocation} onPainTypeChange={setPainType} />}
+      </fieldset>
+      <button className="button button--accent" disabled={saving}>{saving ? 'Enregistrement…' : 'Enregistrer'}</button>
+    </form>}
   </section>
 }
 
