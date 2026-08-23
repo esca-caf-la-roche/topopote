@@ -607,6 +607,7 @@ input[type='color'] { padding: 3px; }
   .climber-page { gap: 34px; margin-top: 38px; }
   .training-page { gap: 30px; margin-top: 38px; }
   .climber-title { font-size: clamp(2.4rem, 14vw, 3.4rem); overflow-wrap: anywhere; }
+  .hero--entrainement .climber-title { font-size: clamp(2rem, 10vw, 2.75rem); overflow-wrap: normal; white-space: nowrap; }
   .hero--carnet .eyebrow, .hero--classement .eyebrow { overflow-wrap: anywhere; }
   .profile-strip, .score-explainer { align-items: stretch; flex-direction: column; padding: 20px; }
   .profile-strip__actions { justify-content: stretch; }
