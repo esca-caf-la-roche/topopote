@@ -30,6 +30,19 @@ const rpeChoices = [
   ['9 ou 10 ?', '10 correspond au maximum exceptionnel de toute la séance, pas à un seul mouvement tenté très fort.'],
 ]
 
+const painScale = [
+  [1, 'À peine perceptible ; il faut y penser pour la sentir.', 'Très légère sensibilité de peau, doigt un peu raide à l’échauffement, biceps ou coude seulement « présent ».'],
+  [2, 'Faible, clairement perceptible mais facile à ignorer.', 'Petite sensibilité sur un doigt en arquée, avant-bras légèrement douloureux, gêne discrète du biceps sur une traction facile.'],
+  [3, 'Légère à modérée ; attire l’attention sur le geste.', 'Point sensible en arquée, en blocage bras fléchi, sur un undercling, en compression d’épaule ou lors d’un talon très tiré.'],
+  [4, 'Modérée ; difficile de ne plus y penser pendant le mouvement.', 'Douleur du doigt à chaque arquée, biceps présent à chaque blocage, épaule douloureuse à chaque mouvement haut.'],
+  [5, 'Marquée ; milieu de l’échelle entre aucune douleur et la pire imaginable.', 'Point douloureux au coude à chaque traction, doigt douloureux sur plusieurs prises, épaule franchement douloureuse en grimpant.'],
+  [6, 'Forte ; domine nettement l’attention.', 'Douleur forte du biceps dès que le bras tire, doigt fortement douloureux à la préhension, douleur forte du dos dans certains placements.'],
+  [7, 'Très forte ; difficilement tolérable.', 'Très forte douleur du doigt à la prise, du biceps au blocage, de l’épaule en compression ou du genou sur un crochet.'],
+  [8, 'Très sévère ; presque toute l’attention est captée par la douleur.', 'Douleur très sévère du doigt, du bras, de l’épaule, du genou ou du dos après un mouvement.'],
+  [9, 'Extrême ; juste en dessous de la pire douleur imaginable.', 'Douleur extrême après la mise en charge d’une prise, un mouvement brutal ou une chute.'],
+  [10, 'Pire douleur imaginable.', 'Douleur maximale que tu puisses concevoir ou avoir ressentie lors d’un accident ou d’une mise en charge.'],
+] as const
+
 export default function TrainingLoadTutorial({ onClose }: { onClose: () => void }) {
   const dialogRef = useRef<HTMLElement>(null)
 
@@ -76,7 +89,7 @@ export default function TrainingLoadTutorial({ onClose }: { onClose: () => void 
 
       <section><h3>5. Si tu hésites entre deux notes</h3><dl className="training-tutorial__choices">{rpeChoices.map(([title, explanation]) => <div key={title}><dt>{title}</dt><dd>{explanation}</dd></div>)}</dl></section>
 
-      <section><h3>6. Douleur et historique</h3><p>Si tu as mal, indique une intensité de 1 à 10. Observe au moins 4 semaines complètes avant de comparer tes semaines à ta propre habitude : il n’existe pas de valeur idéale universelle.</p><p className="training-tutorial__warning">Une douleur persistante, croissante ou qui modifie le geste passe avant le score. Réduis la sollicitation concernée et demande un avis professionnel si nécessaire.</p></section>
+      <section><h3>6. Douleur et historique</h3><p>Si tu as mal, indique une intensité de 1 à 10. Utilise les repères ci-dessous pour garder une notation aussi constante que possible.</p><div className="training-tutorial__pain-table"><table><caption>Échelle de douleur de 1 à 10</caption><thead><tr><th scope="col">Note</th><th scope="col">Repère d’intensité</th><th scope="col">Exemples de ressenti possibles en escalade</th></tr></thead><tbody>{painScale.map(([note, intensity, examples]) => <tr key={note}><th scope="row">{note}</th><td>{intensity}</td><td>{examples}</td></tr>)}</tbody></table></div><p>Observe au moins 4 semaines complètes avant de comparer tes semaines à ta propre habitude : il n’existe pas de valeur idéale universelle.</p><p className="training-tutorial__warning">Une douleur persistante, croissante ou qui modifie le geste passe avant le score. Réduis la sollicitation concernée et demande un avis professionnel si nécessaire.</p></section>
       <button className="button button--accent training-tutorial__done" type="button" onClick={onClose}>J’ai compris</button>
     </section>
   </div>, document.body)

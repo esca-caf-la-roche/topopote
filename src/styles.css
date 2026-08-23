@@ -290,6 +290,7 @@ input[type='color'] { padding: 3px; }
 .training-simple-form--with-context .training-form-field { grid-column: span 2; }
 .training-form-pain { grid-column: span 3; }
 .training-form-field--pain-level { grid-column: span 2; }
+.training-form-field--pain-detail, .training-simple-form--with-context .training-form-field--pain-detail { grid-column: span 3; }
 .training-simple-form__submit { grid-column: span 3; justify-self: start; }
 .training-pain-toggle { min-width: 0; margin: 0; padding: 0; border: 0; }
 .training-pain-toggle legend { margin-bottom: 7px; padding: 0; font-weight: 900; }
@@ -386,6 +387,14 @@ input[type='color'] { padding: 3px; }
 .training-tutorial__choices div { display: grid; grid-template-columns: minmax(90px, .35fr) minmax(0, 1.65fr); gap: 12px; padding: 12px; border: 2px solid var(--ink); background: var(--paper); }
 .training-tutorial__choices dt { font-weight: 900; }
 .training-tutorial__choices dd { margin: 0; }
+.training-tutorial__pain-table { overflow-x: auto; border: 2px solid var(--ink); background: var(--paper); }
+.training-tutorial__pain-table table { width: 100%; min-width: 760px; border-collapse: collapse; }
+.training-tutorial__pain-table caption { padding: 12px; border-bottom: 2px solid var(--ink); background: var(--pink); font-weight: 900; text-align: left; }
+.training-tutorial__pain-table th, .training-tutorial__pain-table td { padding: 10px 12px; border-right: 2px solid var(--ink); border-bottom: 2px solid var(--ink); text-align: left; vertical-align: top; }
+.training-tutorial__pain-table th:last-child, .training-tutorial__pain-table td:last-child { border-right: 0; }
+.training-tutorial__pain-table tbody tr:last-child > * { border-bottom: 0; }
+.training-tutorial__pain-table thead th { background: var(--yellow); }
+.training-tutorial__pain-table tbody th { width: 64px; text-align: center; }
 .training-tutorial__warning { padding: 14px; border: 3px solid var(--ink); background: #ff8b8b; font-weight: 800; }
 .training-tutorial__done { width: 100%; margin-top: 18px; }
 .training-icon-action { display: grid; width: 42px; height: 42px; flex: 0 0 42px; place-items: center; padding: 0; border: 2px solid var(--ink); background: var(--paper); box-shadow: 3px 3px 0 var(--ink); font-size: 1.15rem; line-height: 1; }

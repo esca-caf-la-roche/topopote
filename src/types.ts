@@ -71,6 +71,8 @@ export type TrainingLocation = 'mur' | 'exterieur'
 
 export type TrainingActivityType = 'bloc_interieur' | 'bloc_exterieur' | 'poutre' | 'ppg' | 'cardio' | 'renforcement' | 'course' | 'randonnee' | 'competition' | 'autre'
 
+export type PainType = 'sourde' | 'elancement' | 'tiraillement' | 'pincement' | 'brulure' | 'decharge_electrique' | 'fourmillement_engourdissement' | 'raideur' | 'sensibilite_toucher' | 'autre'
+
 export type TrainingSession = {
   id: string
   userId: string
@@ -82,6 +84,8 @@ export type TrainingSession = {
   endTime: string | null
   perceivedEffort: number | null
   pain: number | null
+  painLocation: string | null
+  painType: PainType | null
   createdAt: string
 }
 
@@ -93,6 +97,8 @@ export type TrainingActivity = {
   durationMinutes: number | null
   perceivedEffort: number | null
   pain: number | null
+  painLocation: string | null
+  painType: PainType | null
   createdAt: string
 }
 

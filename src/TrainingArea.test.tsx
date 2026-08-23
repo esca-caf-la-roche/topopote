@@ -70,9 +70,47 @@ describe('TrainingArea', () => {
     fireEvent.change(screen.getByLabelText('RPE'), { target: { value: '6' } })
     fireEvent.click(screen.getByLabelText('Oui'))
     fireEvent.change(screen.getByLabelText('Douleur de 1 à 10'), { target: { value: '4' } })
+    fireEvent.change(screen.getByLabelText('Partie du corps douloureuse'), { target: { value: ' Coude droit ' } })
+    expect(within(screen.getByLabelText('Type de douleur')).getByRole('option', { name: 'Tiraillement' })).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('Type de douleur'), { target: { value: 'tiraillement' } })
     fireEvent.click(screen.getByRole('button', { name: 'Enregistrer la séance' }))
-    await waitFor(() => expect(insert).toHaveBeenCalledWith(expect.objectContaining({ type_activite: 'poutre', duree_minutes: 90, effort_percu: 6, douleur: 4 })))
+    await waitFor(() => expect(insert).toHaveBeenCalledWith(expect.objectContaining({ type_activite: 'poutre', duree_minutes: 90, effort_percu: 6, douleur: 4, zone_douleur: 'Coude droit', type_douleur: 'tiraillement' })))
     expect(insert).not.toHaveBeenCalledWith(expect.objectContaining({ contrainte_doigts: expect.anything() }))
+  })
+
+  it('repropose sans doublon les parties du corps déjà enregistrées', async () => {
+    const sessions = [{ id: 'session-1', user_id: 'user-1', date_seance: '2026-08-20', type_lieu: 'mur', falaise: null, duree_minutes: 60, heure_debut: null, heure_fin: null, effort_percu: 6, douleur: 3, zone_douleur: 'Coude droit', type_douleur: 'tiraillement', created_at: '2026-08-20T12:00:00Z' }]
+    const activities = [
+      { id: 'activity-1', user_id: 'user-1', date_activite: '2026-08-19', type_activite: 'ppg', duree_minutes: 30, effort_percu: 5, douleur: 2, zone_douleur: 'coude droit', type_douleur: 'sourde', created_at: '2026-08-19T12:00:00Z' },
+      { id: 'activity-2', user_id: 'user-1', date_activite: '2026-08-18', type_activite: 'poutre', duree_minutes: 30, effort_percu: 5, douleur: 2, zone_douleur: 'Épaule gauche', type_douleur: 'pincement', created_at: '2026-08-18T12:00:00Z' },
+    ]
+    from.mockImplementation((table: string) => queryResult(table === 'seances_entrainement' ? sessions : table === 'activites_charge' ? activities : []))
+    render(<TrainingArea user={{ id: 'user-1' } as never} isAdmin={false} isOpener={false} sharesActivity={false} hasTrainingAccess authLoading={false} routes={[]} grades={[]} onSignOut={async () => undefined} />)
+
+    await screen.findByText('Coude droit')
+    fireEvent.click(screen.getByLabelText('Oui'))
+    const locationInput = screen.getByLabelText('Partie du corps douloureuse')
+    const list = document.getElementById(locationInput.getAttribute('list')!)!
+    expect([...list.querySelectorAll('option')].map((option) => option.value)).toEqual(['Coude droit', 'Épaule gauche'])
+  })
+
+  it('restaure et modifie les détails d’une douleur existante', async () => {
+    const session = { id: 'session-1', user_id: 'user-1', date_seance: '2026-08-20', type_lieu: 'mur', falaise: null, duree_minutes: 60, heure_debut: null, heure_fin: null, effort_percu: 6, douleur: 3, zone_douleur: 'Coude droit', type_douleur: 'tiraillement', created_at: '2026-08-20T12:00:00Z' }
+    from.mockImplementation((table: string) => queryResult(table === 'seances_entrainement' ? [session] : []))
+    render(<TrainingArea user={{ id: 'user-1' } as never} isAdmin={false} isOpener={false} sharesActivity={false} hasTrainingAccess authLoading={false} routes={[]} grades={[]} onSignOut={async () => undefined} />)
+
+    const card = (await screen.findByText('20/08/2026')).closest('article')!
+    expect(within(card).getByText('Coude droit')).toBeTruthy()
+    expect(within(card).getByText('Tiraillement')).toBeTruthy()
+    fireEvent.click(within(card).getByRole('button', { name: 'Modifier ma séance' }))
+    expect((within(card).getByLabelText('Partie du corps douloureuse') as HTMLInputElement).value).toBe('Coude droit')
+    expect((within(card).getByLabelText('Type de douleur') as HTMLSelectElement).value).toBe('tiraillement')
+    fireEvent.change(within(card).getByRole('spinbutton', { name: 'Douleur (1–10)' }), { target: { value: '5' } })
+    fireEvent.change(within(card).getByLabelText('Partie du corps douloureuse'), { target: { value: 'Épaule gauche' } })
+    fireEvent.change(within(card).getByLabelText('Type de douleur'), { target: { value: 'pincement' } })
+    fireEvent.click(within(card).getByRole('button', { name: 'Enregistrer' }))
+
+    await waitFor(() => expect(update).toHaveBeenCalledWith(expect.objectContaining({ douleur: 5, zone_douleur: 'Épaule gauche', type_douleur: 'pincement' })))
   })
 
   it('enregistre une heure de début seule sans imposer les questions de charge', async () => {
@@ -163,8 +201,11 @@ describe('TrainingArea', () => {
     const editPainGroup = within(currentSession).getByRole('group', { name: 'Douleurs' })
     fireEvent.click(within(editPainGroup).getByRole('radio', { name: 'Oui' }))
     expect(within(currentSession).getByRole('spinbutton', { name: 'Douleur (1–10)' })).toBeTruthy()
+    expect(within(currentSession).getByLabelText('Partie du corps douloureuse')).toBeTruthy()
+    expect(within(currentSession).getByLabelText('Type de douleur')).toBeTruthy()
     fireEvent.click(within(editPainGroup).getByRole('radio', { name: 'Non' }))
     expect(within(currentSession).queryByRole('spinbutton', { name: 'Douleur (1–10)' })).toBeNull()
+    expect(within(currentSession).queryByLabelText('Partie du corps douloureuse')).toBeNull()
     fireEvent.click(within(currentSession).getByRole('button', { name: 'Annuler' }))
     const row = comment.closest('article')!
     expect(within(row).getByText('2')).toBeTruthy()
@@ -182,7 +223,7 @@ describe('TrainingArea', () => {
     expect([...document.querySelectorAll('#training-crags option')].map((option) => option.getAttribute('value'))).toEqual(['Ablon', 'Le Salève'])
   })
 
-  it('explique simplement la formule, le temps et chaque RPE de 1 à 10', async () => {
+  it('explique simplement la formule, le temps, chaque RPE et les repères de douleur de 1 à 10', async () => {
     render(<TrainingArea user={{ id: 'user-1' } as never} isAdmin={false} isOpener={false} sharesActivity={false} hasTrainingAccess authLoading={false} routes={[]} grades={[]} onSignOut={async () => undefined} />)
     const tutorialButton = await screen.findByRole('button', { name: 'Comprendre la charge' })
     tutorialButton.focus()
@@ -196,6 +237,11 @@ describe('TrainingArea', () => {
     expect(within(dialog).getByText(/6 ou 7/)).toBeTruthy()
     expect(within(dialog).queryByText(/contrainte des doigts/i)).toBeNull()
     for (let value = 1; value <= 10; value += 1) expect(within(dialog).getByText(new RegExp(`^${value} —`))).toBeTruthy()
+    const painTable = within(dialog).getByRole('table', { name: 'Échelle de douleur de 1 à 10' })
+    expect(within(painTable).getAllByRole('row')).toHaveLength(11)
+    for (let value = 1; value <= 10; value += 1) expect(within(painTable).getByRole('rowheader', { name: String(value) })).toBeTruthy()
+    expect(within(painTable).getByText(/À peine perceptible/)).toBeTruthy()
+    expect(within(painTable).getByText(/Douleur maximale que tu puisses concevoir/)).toBeTruthy()
     fireEvent.keyDown(window, { key: 'Escape' })
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Comprendre la charge' }))

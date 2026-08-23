@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(48);
+select plan(54);
 
 select ok(
   not has_table_privilege('anon', 'public.seances_entrainement', 'select'),
@@ -33,6 +33,18 @@ select hasnt_column(
 select has_column(
   'public',
   'seances_entrainement',
+  'zone_douleur',
+  'les séances conservent la partie du corps douloureuse'
+);
+select has_column(
+  'public',
+  'seances_entrainement',
+  'type_douleur',
+  'les séances conservent le type de douleur'
+);
+select has_column(
+  'public',
+  'seances_entrainement',
   'heure_debut',
   'les séances peuvent conserver une heure de début'
 );
@@ -47,6 +59,18 @@ select hasnt_column(
   'activites_charge',
   'contrainte_doigts',
   'les autres activités ne stockent plus de charge des doigts'
+);
+select has_column(
+  'public',
+  'activites_charge',
+  'zone_douleur',
+  'les activités conservent la partie du corps douloureuse'
+);
+select has_column(
+  'public',
+  'activites_charge',
+  'type_douleur',
+  'les activités conservent le type de douleur'
 );
 
 insert into auth.users (
@@ -132,16 +156,17 @@ select lives_ok(
 );
 select lives_ok(
   $$update public.seances_entrainement
-    set duree_minutes = 60, effort_percu = 7, douleur = 4
+    set duree_minutes = 60, effort_percu = 7, douleur = 4,
+        zone_douleur = 'Coude droit', type_douleur = 'tiraillement'
     where id = '60000000-0000-0000-0000-00000000d001'$$,
   'le propriétaire peut renseigner le suivi simple de sa séance'
 );
 select results_eq(
-  $$select duree_minutes, effort_percu, douleur
+  $$select duree_minutes, effort_percu, douleur, zone_douleur, type_douleur
     from public.seances_entrainement
     where id = '60000000-0000-0000-0000-00000000d001'$$,
-  $$values (60::smallint, 7::smallint, 4::smallint)$$,
-  'le temps, la RPE et la douleur sont conservés'
+  $$values (60::smallint, 7::smallint, 4::smallint, 'Coude droit'::text, 'tiraillement'::text)$$,
+  'le temps, la RPE et les détails de douleur sont conservés'
 );
 select lives_ok(
   $$update public.seances_entrainement
@@ -201,6 +226,26 @@ select throws_ok(
   '23514',
   null,
   'une douleur supérieure à 10 est refusée'
+);
+select throws_ok(
+  $$update public.seances_entrainement
+    set douleur = 4, zone_douleur = 'Coude', type_douleur = 'inconnue'
+    where id = '60000000-0000-0000-0000-00000000d001'$$,
+  '23514',
+  null,
+  'un type de douleur hors liste est refusé pour une séance'
+);
+select throws_ok(
+  $$insert into public.activites_charge (
+      user_id, date_activite, type_activite, duree_minutes, effort_percu,
+      douleur, zone_douleur, type_douleur
+    ) values (
+      '00000000-0000-0000-0000-00000000d001', current_date, 'ppg', 30, 5,
+      0, 'Épaule', 'pincement'
+    )$$,
+  '23514',
+  null,
+  'les détails de douleur sont refusés quand aucune douleur est déclarée'
 );
 select throws_ok(
   $$update public.seances_entrainement
