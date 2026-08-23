@@ -14,9 +14,9 @@ describe('practitioner social helpers', () => {
   })
 
   it('filtre les relations sans être sensible à la casse', () => {
-    expect(filterPractitioners(practitioners, 'noÉ', 'tous')).toEqual([practitioners[1]])
-    expect(filterPractitioners(practitioners, 'lea', 'tous')).toEqual([practitioners[0]])
-    expect(filterPractitioners(practitioners, '', 'suivis')).toEqual(practitioners.slice(0, 2))
-    expect(filterPractitioners(practitioners, '', 'abonnes')).toEqual(practitioners.slice(1))
+    expect(filterPractitioners(practitioners, 'noÉ')).toEqual([practitioners[1]])
+    expect(filterPractitioners(practitioners, '  lea  ')).toEqual([practitioners[0]])
+    expect(filterPractitioners(practitioners, '')).toEqual(practitioners)
+    expect(filterPractitioners(practitioners, 'introuvable')).toEqual([])
   })
 })

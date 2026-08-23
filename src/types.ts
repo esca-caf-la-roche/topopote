@@ -180,6 +180,14 @@ export type PractitionerRelation = {
   canFollow: boolean
 }
 
+export type FollowedPractitioner = {
+  id: string
+  nickname: string
+  followsMe: boolean
+  score: number
+  season: string | null
+}
+
 export type FriendActivity = {
   nickname: string
   climbedAt: string

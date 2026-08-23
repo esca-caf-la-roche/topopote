@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(40);
+select plan(53);
 
 select ok(
   not has_table_privilege('anon', 'public.suivis_pratiquants', 'select'),
@@ -33,6 +33,14 @@ select ok(
   'anon ne peut pas consulter le fil des pratiquants'
 );
 select ok(
+  not has_function_privilege('anon', 'public.mes_pratiquants_suivis()', 'execute'),
+  'anon ne peut pas consulter les resumes des profils suivis'
+);
+select ok(
+  not has_function_privilege('anon', 'public.realisations_pratiquant_suivi(uuid)', 'execute'),
+  'anon ne peut pas consulter les realisations detaillees d un suivi'
+);
+select ok(
   has_function_privilege('authenticated', 'public.annuaire_pratiquants()', 'execute'),
   'authenticated peut consulter l annuaire via le RPC'
 );
@@ -43,6 +51,14 @@ select ok(
 select ok(
   has_function_privilege('authenticated', 'public.fil_activite_pratiquants(integer)', 'execute'),
   'authenticated peut consulter son fil via le RPC'
+);
+select ok(
+  has_function_privilege('authenticated', 'public.mes_pratiquants_suivis()', 'execute'),
+  'authenticated peut consulter les resumes de ses suivis via le RPC'
+);
+select ok(
+  has_function_privilege('authenticated', 'public.realisations_pratiquant_suivi(uuid)', 'execute'),
+  'authenticated peut consulter les realisations d un suivi via le RPC'
 );
 select ok(
   not has_column_privilege('authenticated', 'public.profils', 'id_public', 'insert'),
@@ -223,12 +239,28 @@ select results_eq(
   'Alice distingue une relation reciproque dans les deux sens'
 );
 select results_eq(
+  $$select pseudo, score, saison from public.mes_pratiquants_suivis()$$,
+  $$select
+      'Bob Test Suivi'::text,
+      ((select cotation.points from public.cotations cotation where cotation.libelle = '6a') * 2 + 53)::bigint,
+      '__test_suivi__'::text$$,
+  'le resume du suivi utilise le score des dix meilleures voies de la saison active'
+);
+select results_eq(
   $$select pseudo, date_enchainement, style, commentaire, couleur
     from public.fil_activite_pratiquants()$$,
   $$values
     ('Bob Test Suivi'::text, current_date - 1, 'flash'::text, 'Dernier enchainement partage'::text, '__test_suivi_rouge__'::text),
     ('Bob Test Suivi'::text, current_date - 2, 'apres_travail'::text, 'Premier enchainement partage'::text, '__test_suivi_bleu__'::text)$$,
   'le fil affiche les enchainements des amis du plus recent au plus ancien'
+);
+select results_eq(
+  $$select pseudo, date_enchainement, style, commentaire, couleur
+    from public.realisations_pratiquant_suivi('90000000-0000-0000-0000-00000000d102')$$,
+  $$values
+    ('Bob Test Suivi'::text, current_date - 1, 'flash'::text, 'Dernier enchainement partage'::text, '__test_suivi_rouge__'::text),
+    ('Bob Test Suivi'::text, current_date - 2, 'apres_travail'::text, 'Premier enchainement partage'::text, '__test_suivi_bleu__'::text)$$,
+  'le detail cible toutes les realisations partagees du profil suivi'
 );
 select results_eq(
   $$select count(*)::bigint from public.fil_activite_pratiquants(1)$$,
@@ -243,6 +275,16 @@ select results_eq(
   $$select count(*)::bigint from public.fil_activite_pratiquants()$$,
   $$values (0::bigint)$$,
   'desuivre retire immediatement les enchainements du fil'
+);
+select results_eq(
+  $$select count(*)::bigint from public.mes_pratiquants_suivis()$$,
+  $$values (0::bigint)$$,
+  'desuivre retire immediatement la carte resume'
+);
+select results_eq(
+  $$select count(*)::bigint from public.realisations_pratiquant_suivi('90000000-0000-0000-0000-00000000d102')$$,
+  $$values (0::bigint)$$,
+  'un profil non suivi ne peut pas etre interroge directement par son identifiant social'
 );
 select results_eq(
   $$select pseudo, est_suivi, me_suit
@@ -275,6 +317,16 @@ select results_eq(
   $$values (0::bigint)$$,
   'un profil prive ne peut plus consulter le fil'
 );
+select results_eq(
+  $$select count(*)::bigint from public.mes_pratiquants_suivis()$$,
+  $$values (0::bigint)$$,
+  'un profil prive ne peut plus consulter les resumes de ses suivis'
+);
+select results_eq(
+  $$select count(*)::bigint from public.realisations_pratiquant_suivi('90000000-0000-0000-0000-00000000d101')$$,
+  $$values (0::bigint)$$,
+  'un profil prive ne peut plus consulter les realisations d un suivi'
+);
 select throws_ok(
   $$select public.suivre_pratiquant('90000000-0000-0000-0000-00000000d101', false)$$,
   '42501',
@@ -298,6 +350,16 @@ select results_eq(
   $$select null::text, false, false where false$$,
   'retirer le partage masque immediatement le profil dans l annuaire'
 );
+select results_eq(
+  $$select count(*)::bigint from public.mes_pratiquants_suivis()$$,
+  $$values (0::bigint)$$,
+  'retirer le partage masque immediatement la carte du profil suivi'
+);
+select results_eq(
+  $$select count(*)::bigint from public.realisations_pratiquant_suivi('90000000-0000-0000-0000-00000000d102')$$,
+  $$values (0::bigint)$$,
+  'retirer le partage masque immediatement toutes les realisations detaillees'
+);
 
 reset role;
 set local role authenticated;
@@ -316,6 +378,11 @@ select results_eq(
   $$select count(*)::bigint from public.fil_activite_pratiquants()$$,
   $$values (2::bigint)$$,
   'reactiver le partage restaure immediatement le fil sans recreer le suivi'
+);
+select results_eq(
+  $$select count(*)::bigint from public.realisations_pratiquant_suivi('90000000-0000-0000-0000-00000000d102')$$,
+  $$values (2::bigint)$$,
+  'reactiver le partage restaure immediatement les realisations detaillees'
 );
 
 select * from finish();
