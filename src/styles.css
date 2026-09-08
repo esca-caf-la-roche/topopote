@@ -184,6 +184,21 @@ input[type='color'] { padding: 3px; }
 .modal .route-create-form { border: 0; }
 .modal__close { position: absolute; z-index: 1; top: 12px; right: 12px; display: grid; place-items: center; width: 42px; height: 42px; padding: 0; border: var(--border); background: var(--paper); font-size: 1.7rem; font-weight: 900; line-height: 1; }
 .route-ascent-modal { padding: 24px; }
+.training-link-modal { display: grid; gap: 20px; width: min(680px, 100%); padding: 24px; background: var(--yellow); }
+.training-link-modal header { padding-right: 20px; }
+.training-link-modal h2 { font-size: clamp(1.8rem, 5vw, 3rem); line-height: 1; }
+.training-link-modal header p:last-child { margin-bottom: 0; font-weight: 700; }
+.training-link-modal__routes { display: grid; gap: 10px; }
+.training-link-modal__toggle { justify-self: start; padding: 7px 10px; border: 2px solid var(--ink); background: var(--blue); box-shadow: 3px 3px 0 var(--ink); font-weight: 900; }
+.training-link-modal__routes > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; border: 2px solid var(--ink); background: var(--paper); }
+.training-link-modal__routes > div.is-selected { box-shadow: 4px 4px 0 var(--ink); }
+.training-link-modal__routes label { display: grid; grid-template-columns: auto 18px minmax(0, 1fr); align-items: center; gap: 12px; padding: 14px; cursor: pointer; }
+.training-link-modal__routes input { width: 22px; height: 22px; accent-color: var(--ink); }
+.training-link-modal__swatch { align-self: stretch; min-height: 42px; border: 2px solid var(--ink); }
+.training-link-modal__routes strong, .training-link-modal__routes small { display: block; }
+.training-link-modal__routes small { margin-top: 4px; font-weight: 700; }
+.training-link-modal__routes .training-link-modal__attempts { display: grid; grid-template-columns: minmax(95px, 1fr) 70px; gap: 8px; border-left: 2px solid var(--ink); cursor: default; font-size: .8rem; font-weight: 900; }
+.training-link-modal__attempts input { width: 70px; min-height: 42px; border: 2px solid var(--ink); text-align: center; }
 .route-ascent-modal__header { display: grid; grid-template-columns: 28px 1fr; gap: 16px; align-items: stretch; padding: 4px 56px 22px 0; border-bottom: var(--border); }
 .route-ascent-modal__header h2, .route-ascent-form h3, .route-reviews h3, .route-ascent-modal__profile h3 { margin: 0; }
 .route-ascent-modal__swatch { min-height: 78px; border: 2px solid var(--ink); }
@@ -620,6 +635,10 @@ input[type='color'] { padding: 3px; }
   .modal-backdrop { place-items: start center; padding: 10px; }
   .modal { max-height: calc(100dvh - 20px); box-shadow: 5px 5px 0 var(--ink); }
   .route-ascent-modal { padding: 16px; }
+  .training-link-modal { padding: 16px; }
+  .training-link-modal .admin-actions { display: grid; grid-template-columns: 1fr; }
+  .training-link-modal__routes > div { grid-template-columns: 1fr; }
+  .training-link-modal__routes .training-link-modal__attempts { border-top: 2px solid var(--ink); border-left: 0; }
   .route-ascent-modal__own { grid-template-columns: auto 1fr; }
   .route-ascent-modal__own .button { grid-column: 1 / -1; text-align: center; }
   .section-heading { align-items: flex-start; }

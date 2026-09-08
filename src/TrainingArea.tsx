@@ -58,6 +58,14 @@ type EntryRow = {
   created_at: string
 }
 
+type TrainingAscentCandidate = {
+  id: string
+  routeId: string
+  climbedAt: string
+  style: AscentStyle
+  attempts: number
+}
+
 type PendingAscent = {
   entry: TrainingRouteEntry
   route: Route
@@ -140,6 +148,7 @@ export default function TrainingArea({ user, isAdmin, isOpener, sharesActivity, 
   const [activities, setActivities] = useState<TrainingActivity[]>([])
   const [entries, setEntries] = useState<TrainingRouteEntry[]>([])
   const [ascentIdsByRoute, setAscentIdsByRoute] = useState<Record<string, string>>({})
+  const [ascentCandidates, setAscentCandidates] = useState<TrainingAscentCandidate[]>([])
   const [loading, setLoading] = useState(true)
   const [feedback, setFeedback] = useState<Feedback>(null)
   const [pendingAscent, setPendingAscent] = useState<PendingAscent | null>(null)
@@ -159,6 +168,7 @@ export default function TrainingArea({ user, isAdmin, isOpener, sharesActivity, 
       setActivities([])
       setEntries([])
       setAscentIdsByRoute({})
+      setAscentCandidates([])
       setLoading(false)
       return
     }
@@ -167,7 +177,7 @@ export default function TrainingArea({ user, isAdmin, isOpener, sharesActivity, 
       supabase.from('seances_entrainement').select('id, user_id, date_seance, type_lieu, falaise, duree_minutes, heure_debut, heure_fin, effort_percu, douleur, zone_douleur, type_douleur, created_at').order('date_seance', { ascending: false }).order('created_at', { ascending: false }),
       supabase.from('activites_charge').select('id, user_id, date_activite, type_activite, duree_minutes, effort_percu, douleur, zone_douleur, type_douleur, created_at').order('date_activite', { ascending: false }).order('created_at', { ascending: false }),
       supabase.from('voies_seance').select('id, seance_id, voie_id, nom_voie, cotation, commentaire, nombre_essais, enchainee, style, enchainement_id, created_at').order('created_at'),
-      supabase.from('enchainements').select('id, voie_id').eq('user_id', user.id),
+      supabase.from('enchainements').select('id, voie_id, date_enchainement, style, essais').eq('user_id', user.id),
     ])
     const error = sessionsResult.error || activitiesResult.error || entriesResult.error || ascentsResult.error
     if (error) {
@@ -221,6 +231,7 @@ export default function TrainingArea({ user, isAdmin, isOpener, sharesActivity, 
       sessionCrag: sessionsById[row.seance_id].crag,
     })))
     setAscentIdsByRoute(Object.fromEntries((ascentsResult.data ?? []).map((row) => [row.voie_id, row.id])))
+    setAscentCandidates((ascentsResult.data ?? []).map((row) => ({ id: row.id, routeId: row.voie_id, climbedAt: row.date_enchainement, style: row.style as AscentStyle, attempts: row.essais })))
     setLoading(false)
   }, [hasTrainingAccess, user])
 
@@ -275,7 +286,7 @@ export default function TrainingArea({ user, isAdmin, isOpener, sharesActivity, 
           : !hasTrainingAccess ? <main className="training-page"><section className="training-access-denied"><p className="section-kicker">Accès privé</p><h2>Section non activée</h2><p>Le booléen d’accès doit être activé manuellement dans Supabase pour ton profil.</p></section></main>
             : <main className="training-page">
               <WeeklyLoadSummary sessions={sessions} activities={activities} onOpenTutorial={() => setTutorialOpen(true)} />
-              <SessionForm sessions={sessions} painLocations={painLocations} onCreated={loadTraining} onFeedback={setFeedback} />
+              <SessionForm sessions={sessions} painLocations={painLocations} routes={routes} ascentCandidates={ascentCandidates.filter((ascent) => !entries.some((entry) => entry.ascentId === ascent.id))} onCreated={loadTraining} onFeedback={setFeedback} />
               <section className="training-log"><div className="section-heading"><div><p className="section-kicker">Historique</p><h2>Mes séances</h2></div><span className="count">{sessions.length + activities.length}</span></div>
                 {loading ? <p className="empty-state">Chargement des séances…</p>
                   : sessions.length + activities.length === 0 ? <p className="empty-state">Aucune séance enregistrée.</p>
@@ -421,7 +432,7 @@ function ActivityCard({ activity, onChanged, onFeedback }: { activity: TrainingA
   return <article className="training-activity-card"><div><p className="section-kicker">Autres · {activityLabels[activity.activityType]}</p><h3>{formatDate(activity.date)}</h3><div className="training-simple-tags"><span className={activity.pain ? 'is-pain' : ''}>{painLabel(activity.pain)}</span>{activity.painLocation && <span>{activity.painLocation}</span>}{activity.painType && <span>{painTypeLabel(activity.painType)}</span>}</div></div><div className="training-activity-card__load"><output>{load ?? '—'}{load !== null ? ' UA' : ''}</output><small>{load === null ? 'Données incomplètes' : `${activity.durationMinutes} min × RPE ${activity.perceivedEffort}/10`}</small></div><button className="training-icon-action training-icon-action--danger" type="button" aria-label="Supprimer l’activité" disabled={pending} onClick={() => void remove()}>🗑️</button></article>
 }
 
-function SessionForm({ sessions, painLocations, onCreated, onFeedback }: { sessions: TrainingSession[]; painLocations: string[]; onCreated: () => Promise<void>; onFeedback: (feedback: Feedback) => void }) {
+function SessionForm({ sessions, painLocations, routes, ascentCandidates, onCreated, onFeedback }: { sessions: TrainingSession[]; painLocations: string[]; routes: Route[]; ascentCandidates: TrainingAscentCandidate[]; onCreated: () => Promise<void>; onFeedback: (feedback: Feedback) => void }) {
   const [date, setDate] = useState(localDate)
   const [activity, setActivity] = useState<'mur' | 'exterieur' | 'autre'>('mur')
   const [activityType, setActivityType] = useState<TrainingActivityType>('bloc_interieur')
@@ -435,21 +446,41 @@ function SessionForm({ sessions, painLocations, onCreated, onFeedback }: { sessi
   const [pain, setPain] = useState('')
   const [painLocation, setPainLocation] = useState('')
   const [painType, setPainType] = useState<PainType | ''>('')
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false)
+  const [selectedAscentIds, setSelectedAscentIds] = useState<string[]>([])
+  const [sessionAttemptsByAscent, setSessionAttemptsByAscent] = useState<Record<string, number>>({})
   const crags = useMemo(() => [...new Set(sessions.filter((session) => session.location === 'exterieur').map((session) => session.crag?.trim()).filter((value): value is string => Boolean(value)))].sort((left, right) => left.localeCompare(right, 'fr', { sensitivity: 'base' })), [sessions])
   const { pending, run } = usePendingAction()
-  async function submit(event: FormEvent) {
-    event.preventDefault()
-    await run(async () => {
+  const sameDayAscents = useMemo(() => ascentCandidates.filter((ascent) => ascent.climbedAt === date && routes.some((route) => route.id === ascent.routeId)), [ascentCandidates, date, routes])
+
+  function validatedValues() {
       const resolvedDuration = resolveDuration(durationMode, duration, startTime, endTime)
       const canBeIncomplete = activity !== 'autre'
-      if (!resolvedDuration.valid) return onFeedback({ kind: 'error', text: 'Le temps de séance est invalide. Une heure de fin exige un début différent.' })
-      if (!canBeIncomplete && resolvedDuration.durationMinutes === null) return onFeedback({ kind: 'error', text: 'La durée et la RPE sont obligatoires pour cette activité.' })
-      if (!canBeIncomplete && !effort) return onFeedback({ kind: 'error', text: 'La durée et la RPE sont obligatoires pour cette activité.' })
-      if (painAnswer === 'yes' && (!pain || !painLocation.trim() || !painType)) return onFeedback({ kind: 'error', text: 'Indique le niveau, la partie du corps et le type de douleur, ou choisis « Plus tard ».' })
+      if (!resolvedDuration.valid) { onFeedback({ kind: 'error', text: 'Le temps de séance est invalide. Une heure de fin exige un début différent.' }); return null }
+      if (!canBeIncomplete && resolvedDuration.durationMinutes === null) { onFeedback({ kind: 'error', text: 'La durée et la RPE sont obligatoires pour cette activité.' }); return null }
+      if (!canBeIncomplete && !effort) { onFeedback({ kind: 'error', text: 'La durée et la RPE sont obligatoires pour cette activité.' }); return null }
+      if (painAnswer === 'yes' && (!pain || !painLocation.trim() || !painType)) { onFeedback({ kind: 'error', text: 'Indique le niveau, la partie du corps et le type de douleur, ou choisis « Plus tard ».' }); return null }
       const common = { duree_minutes: resolvedDuration.durationMinutes, effort_percu: effort ? Number(effort) : null, douleur: painAnswer === 'later' ? null : painAnswer === 'no' ? 0 : Number(pain), zone_douleur: painAnswer === 'yes' ? painLocation.trim() : null, type_douleur: painAnswer === 'yes' ? painType || null : null }
-      const { error } = activity === 'autre'
-        ? await supabase!.from('activites_charge').insert({ date_activite: date, type_activite: activityType, ...common })
-        : await supabase!.from('seances_entrainement').insert({ date_seance: date, type_lieu: activity, falaise: activity === 'exterieur' ? crag.trim() : null, heure_debut: durationMode === 'times' ? startTime || null : null, heure_fin: durationMode === 'times' ? endTime || null : null, ...common })
+      return { resolvedDuration, common }
+  }
+
+  async function save(selectedAscents: TrainingAscentCandidate[]) {
+      const values = validatedValues()
+      if (!values) return
+      const { resolvedDuration, common } = values
+      let error: { message: string } | null = null
+      if (activity === 'autre') ({ error } = await supabase!.from('activites_charge').insert({ date_activite: date, type_activite: activityType, ...common }))
+      else {
+        const sessionResult = await supabase!.from('seances_entrainement').insert({ date_seance: date, type_lieu: activity, falaise: activity === 'exterieur' ? crag.trim() : null, heure_debut: durationMode === 'times' ? startTime || null : null, heure_fin: durationMode === 'times' ? endTime || null : null, ...common }).select('id').single()
+        error = sessionResult.error
+        const sessionId = sessionResult.data?.id
+        if (!error && !sessionId) error = { message: 'La séance a été créée sans identifiant exploitable.' }
+        if (!error && sessionId && selectedAscents.length > 0) {
+          const entriesResult = await supabase!.from('voies_seance').insert(selectedAscents.map((ascent) => ({ seance_id: sessionId, voie_id: ascent.routeId, nombre_essais: sessionAttemptsByAscent[ascent.id] ?? 1, enchainee: true, style: ascent.style, enchainement_id: ascent.id })))
+          error = entriesResult.error
+          if (error) await supabase!.from('seances_entrainement').delete().eq('id', sessionId)
+        }
+      }
       if (error) return onFeedback({ kind: 'error', text: error.message })
       setCrag('')
       setDuration('')
@@ -461,12 +492,32 @@ function SessionForm({ sessions, painLocations, onCreated, onFeedback }: { sessi
       setPain('')
       setPainLocation('')
       setPainType('')
-      onFeedback({ kind: 'success', text: resolvedDuration.durationMinutes === null || !effort ? 'Séance enregistrée. Tu pourras la compléter à la fin.' : 'Séance enregistrée.' })
+      const linkedText = selectedAscents.length > 0 ? ` ${selectedAscents.length} voie${selectedAscents.length > 1 ? 's ont' : ' a'} été rattachée${selectedAscents.length > 1 ? 's' : ''}.` : ''
+      onFeedback({ kind: 'success', text: `${resolvedDuration.durationMinutes === null || !effort ? 'Séance enregistrée. Tu pourras la compléter à la fin.' : 'Séance enregistrée.'}${linkedText}` })
       await onCreated()
+  }
+
+  async function submit(event: FormEvent) {
+    event.preventDefault()
+    if (!validatedValues()) return
+    if (activity === 'mur' && sameDayAscents.length > 0) {
+      setSelectedAscentIds(sameDayAscents.map((ascent) => ascent.id))
+      setSessionAttemptsByAscent(Object.fromEntries(sameDayAscents.map((ascent) => [ascent.id, 1])))
+      setLinkDialogOpen(true)
+      return
+    }
+    await run(() => save([]))
+  }
+
+  async function confirmLinks() {
+    const selected = sameDayAscents.filter((ascent) => selectedAscentIds.includes(ascent.id))
+    await run(async () => {
+      await save(selected)
+      setLinkDialogOpen(false)
     })
   }
   const hasContextField = activity !== 'mur'
-  return <section className="training-session-form"><p className="section-kicker">Nouvelle séance</p><h2>Enregistrer ma séance</h2><form className={`training-simple-form${hasContextField ? ' training-simple-form--with-context' : ''}`} onSubmit={submit}>
+  return <><section className="training-session-form"><p className="section-kicker">Nouvelle séance</p><h2>Enregistrer ma séance</h2><form className={`training-simple-form${hasContextField ? ' training-simple-form--with-context' : ''}`} onSubmit={submit}>
     <label className="training-form-field training-form-field--date"><span>Date</span><input type="date" required max={localDate()} value={date} onChange={(event) => setDate(event.target.value)} /></label>
     <label className="training-form-field training-form-field--activity"><span>Activité</span><select aria-label="Activité" value={activity} onChange={(event) => setActivity(event.target.value as typeof activity)}><option value="mur">Mur St Pierre</option><option value="exterieur">Extérieur</option><option value="autre">Autres</option></select></label>
     {activity === 'exterieur' && <label className="training-form-field training-form-field--context"><span>Falaise</span><input required maxLength={120} list="training-crags" placeholder="Choisir ou saisir une falaise" value={crag} onChange={(event) => setCrag(event.target.value)} /><datalist id="training-crags">{crags.map((name) => <option value={name} key={name} />)}</datalist></label>}
@@ -479,7 +530,7 @@ function SessionForm({ sessions, painLocations, onCreated, onFeedback }: { sessi
       {painAnswer === 'yes' && <PainDetails idPrefix="new-pain" painLocation={painLocation} painType={painType} painLocations={painLocations} onPainLocationChange={setPainLocation} onPainTypeChange={setPainType} />}
     </fieldset>
     <button className="button button--accent training-simple-form__submit" disabled={pending}>{pending ? 'Enregistrement…' : 'Enregistrer la séance'}</button>
-  </form></section>
+  </form></section>{linkDialogOpen && <div className="modal-backdrop" role="presentation"><section className="modal training-link-modal" role="dialog" aria-modal="true" aria-labelledby="training-link-title"><header><p className="section-kicker">Carnet du {formatDate(date)}</p><h2 id="training-link-title">Rattacher les voies enchaînées ?</h2><p>Tu as enchaîné {sameDayAscents.length} voie{sameDayAscents.length > 1 ? 's' : ''} ce jour-là. Choisis celles à ajouter à cette séance.</p></header><button className="training-link-modal__toggle" type="button" onClick={() => setSelectedAscentIds(selectedAscentIds.length === sameDayAscents.length ? [] : sameDayAscents.map((ascent) => ascent.id))}>{selectedAscentIds.length === sameDayAscents.length ? 'Tout décocher' : 'Tout cocher'}</button><div className="training-link-modal__routes">{sameDayAscents.map((ascent) => { const route = routes.find((candidate) => candidate.id === ascent.routeId)!; const selected = selectedAscentIds.includes(ascent.id); return <div className={selected ? 'is-selected' : ''} key={ascent.id}><label><input type="checkbox" checked={selected} onChange={(event) => setSelectedAscentIds((current) => event.target.checked ? [...current, ascent.id] : current.filter((id) => id !== ascent.id))} /><span className="training-link-modal__swatch" style={{ background: route.color.hex }} /><span><strong>Relais {route.relay.number} · {route.color.name} · {route.grade.label}{route.isHalfRoute ? ' · 1/2' : ''}</strong><small>{styleLabels[ascent.style]} · {ascent.attempts} essai{ascent.attempts > 1 ? 's' : ''} cumulés dans le carnet</small></span></label><label className="training-link-modal__attempts"><span>Essais dans cette séance</span><input type="number" min="1" max="999" disabled={!selected} aria-label={`Essais dans cette séance pour le relais ${route.relay.number}, ${route.color.name}, ${route.grade.label}`} value={sessionAttemptsByAscent[ascent.id] ?? 1} onChange={(event) => setSessionAttemptsByAscent((current) => ({ ...current, [ascent.id]: Number(event.target.value) }))} /></label></div> })}</div><div className="admin-actions"><button className="button button--light" type="button" disabled={pending} onClick={() => setLinkDialogOpen(false)}>Annuler</button><button className="button button--accent" type="button" disabled={pending} onClick={() => void confirmLinks()}>{pending ? 'Enregistrement…' : `Créer${selectedAscentIds.length > 0 ? ` et rattacher ${selectedAscentIds.length} voie${selectedAscentIds.length > 1 ? 's' : ''}` : ' sans rattacher'}`}</button></div></section></div>}</>
 }
 
 function SessionCard({ session, entries, allEntries, routes, grades, ascentIdsByRoute, painLocations, onLoadChanged, onOpenAscent, onChanged, onFeedback }: {

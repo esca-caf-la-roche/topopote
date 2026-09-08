@@ -3,13 +3,21 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import TrainingArea from './TrainingArea'
+import type { Route } from './types'
 
-function queryResult(data: unknown[] = []) {
-  const result = { data, error: null }
+type DatabaseWrite = { table: string; values: unknown }
+
+function queryResult(data: unknown[] = [], table = '', insertedData: unknown = data) {
+  const result: { data: unknown; error: null } = { data, error: null }
   const query = {
     select: () => query,
     update: (values: unknown) => { update(values); return query },
-    insert: (values: unknown) => { insert(values); return query },
+    insert: (values: unknown) => {
+      insert(values)
+      databaseWrites.push({ table, values })
+      result.data = insertedData
+      return query
+    },
     delete: () => query,
     order: () => query,
     eq: () => query,
@@ -19,7 +27,22 @@ function queryResult(data: unknown[] = []) {
   return query
 }
 
-const { from, insert, update } = vi.hoisted(() => ({ from: vi.fn(), insert: vi.fn(), update: vi.fn() }))
+const { from, insert, update, databaseWrites } = vi.hoisted(() => ({ from: vi.fn(), insert: vi.fn(), update: vi.fn(), databaseWrites: [] as DatabaseWrite[] }))
+
+function route(id: string, relayNumber: number, colorName: string, gradeLabel: string): Route {
+  return {
+    id,
+    isHalfRoute: false,
+    seasonId: 'season-1',
+    relayId: `relay-${relayNumber}`,
+    colorId: `color-${id}`,
+    gradeId: `grade-${gradeLabel}`,
+    season: { id: 'season-1', name: 'Saison', active: true },
+    relay: { id: `relay-${relayNumber}`, number: relayNumber, zoneId: 'zone-1', zone: { id: 'zone-1', name: 'Dévers', order: 1 } },
+    color: { id: `color-${id}`, name: colorName, hex: '#3b82f6' },
+    grade: { id: `grade-${gradeLabel}`, label: gradeLabel, rank: relayNumber, points: 500, difficulty: 'Difficile' },
+  }
+}
 
 vi.mock('./lib/supabase', () => ({
   isSupabaseConfigured: true,
@@ -33,6 +56,7 @@ describe('TrainingArea', () => {
     from.mockReset()
     insert.mockReset()
     update.mockReset()
+    databaseWrites.length = 0
     from.mockImplementation(() => queryResult())
   })
 
@@ -134,6 +158,66 @@ describe('TrainingArea', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Enregistrer la séance' }))
 
     expect(insert).not.toHaveBeenCalled()
+  })
+
+  it('rattache uniquement les voies du même jour conservées dans la sélection avec leurs essais de séance', async () => {
+    const routes = [
+      route('route-blue', 4, 'Bleue', '6b'),
+      route('route-red', 7, 'Rouge', '7a'),
+      route('route-green', 9, 'Verte', '6c'),
+    ]
+    const ascents = [
+      { id: 'ascent-blue', voie_id: 'route-blue', date_enchainement: '2026-08-24', style: 'flash', essais: 1 },
+      { id: 'ascent-red', voie_id: 'route-red', date_enchainement: '2026-08-24', style: 'apres_travail', essais: 8 },
+      { id: 'ascent-other-day', voie_id: 'route-green', date_enchainement: '2026-08-23', style: 'apres_travail', essais: 3 },
+    ]
+    const createdSession = { id: 'session-created', user_id: 'user-1', date_seance: '2026-08-24', type_lieu: 'mur', falaise: null, duree_minutes: null, heure_debut: null, heure_fin: null, effort_percu: null, douleur: null, zone_douleur: null, type_douleur: null, created_at: '2026-08-24T20:00:00Z' }
+    from.mockImplementation((table: string) => queryResult(
+      table === 'enchainements' ? ascents : [],
+      table,
+      table === 'seances_entrainement' ? createdSession : [],
+    ))
+
+    render(<TrainingArea user={{ id: 'user-1' } as never} isAdmin={false} isOpener={false} sharesActivity={false} hasTrainingAccess authLoading={false} routes={routes} grades={routes.map((item) => item.grade)} onSignOut={async () => undefined} />)
+    await screen.findByRole('heading', { name: 'Enregistrer ma séance' })
+    fireEvent.change(screen.getByLabelText('Date'), { target: { value: '2026-08-24' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer la séance' }))
+
+    const dialog = await screen.findByRole('dialog', { name: /rattacher les voies enchaînées/i })
+    const blue = within(dialog).getByRole('checkbox', { name: /Relais 4.*Bleue.*6b/i }) as HTMLInputElement
+    const red = within(dialog).getByRole('checkbox', { name: /Relais 7.*Rouge.*7a/i }) as HTMLInputElement
+    expect(blue.checked).toBe(true)
+    expect(red.checked).toBe(true)
+    expect(within(dialog).queryByText(/Relais 9.*Verte.*6c/i)).toBeNull()
+
+    fireEvent.click(red)
+    fireEvent.change(within(dialog).getByRole('spinbutton', { name: /essais dans cette séance.*Relais 4/i }), { target: { value: '3' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: /créer et rattacher 1 voie/i }))
+
+    await waitFor(() => expect(databaseWrites).toEqual([
+      { table: 'seances_entrainement', values: expect.objectContaining({ date_seance: '2026-08-24', type_lieu: 'mur' }) },
+      { table: 'voies_seance', values: [{ seance_id: 'session-created', voie_id: 'route-blue', nombre_essais: 3, enchainee: true, style: 'flash', enchainement_id: 'ascent-blue' }] },
+    ]))
+  })
+
+  it('ne propose pas un enchaînement du même jour déjà relié à une séance', async () => {
+    const routes = [route('route-free', 4, 'Bleue', '6b'), route('route-linked', 7, 'Rouge', '7a')]
+    const sessions = [{ id: 'session-existing', user_id: 'user-1', date_seance: '2026-08-24', type_lieu: 'mur', falaise: null, duree_minutes: null, heure_debut: null, heure_fin: null, effort_percu: null, douleur: null, zone_douleur: null, type_douleur: null, created_at: '2026-08-24T18:00:00Z' }]
+    const entries = [{ id: 'entry-linked', seance_id: 'session-existing', voie_id: 'route-linked', nom_voie: null, cotation: null, commentaire: null, nombre_essais: 2, enchainee: true, style: 'apres_travail', enchainement_id: 'ascent-linked', created_at: '2026-08-24T18:10:00Z' }]
+    const ascents = [
+      { id: 'ascent-free', voie_id: 'route-free', date_enchainement: '2026-08-24', style: 'flash', essais: 1 },
+      { id: 'ascent-linked', voie_id: 'route-linked', date_enchainement: '2026-08-24', style: 'apres_travail', essais: 2 },
+    ]
+    from.mockImplementation((table: string) => queryResult(table === 'seances_entrainement' ? sessions : table === 'voies_seance' ? entries : table === 'enchainements' ? ascents : [], table))
+
+    render(<TrainingArea user={{ id: 'user-1' } as never} isAdmin={false} isOpener={false} sharesActivity={false} hasTrainingAccess authLoading={false} routes={routes} grades={routes.map((item) => item.grade)} onSignOut={async () => undefined} />)
+    await screen.findByRole('heading', { name: 'Enregistrer ma séance' })
+    fireEvent.change(screen.getByLabelText('Date'), { target: { value: '2026-08-24' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer la séance' }))
+
+    const dialog = await screen.findByRole('dialog', { name: /rattacher les voies enchaînées/i })
+    expect(within(dialog).getByRole('checkbox', { name: /Relais 4.*Bleue.*6b/i })).toBeTruthy()
+    expect(within(dialog).queryByText(/Relais 7.*Rouge.*7a/i)).toBeNull()
   })
 
   it('restaure le début enregistré et calcule la durée quand la fin est ajoutée', async () => {
