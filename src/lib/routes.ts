@@ -16,6 +16,7 @@ export const emptyFilters: RouteFilters = {
   gradeId: '',
   difficulty: '',
   showHalfRoutes: true,
+  showOnlyUncompleted: false,
 }
 
 export function relaysForZone(relays: Relay[], zoneId: string): Relay[] {
@@ -27,6 +28,7 @@ export function filterRoutes(
   filters: RouteFilters,
   activeSeasonId: string | null,
   sortBy: RouteSort = 'relay',
+  completedRouteIds: ReadonlySet<string> = new Set(),
 ): Route[] {
   return routes
     .filter((route) => route.seasonId === activeSeasonId)
@@ -36,6 +38,7 @@ export function filterRoutes(
     .filter((route) => !filters.gradeId || route.gradeId === filters.gradeId)
     .filter((route) => !filters.difficulty || route.grade.difficulty === filters.difficulty)
     .filter((route) => filters.showHalfRoutes || !route.isHalfRoute)
+    .filter((route) => !filters.showOnlyUncompleted || !completedRouteIds.has(route.id))
     .sort(
       (left, right) =>
         left.relay.zone.order - right.relay.zone.order ||

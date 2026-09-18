@@ -1,4 +1,4 @@
-import { type FormEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { type FormEvent, type TouchEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { createPortal } from 'react-dom'
 import { completedRouteCount, emptyFilters, filterRoutes, gradeDistribution, relaysForZone } from './lib/routes'
@@ -64,6 +64,8 @@ export default function App() {
   const [topoActivityLoading, setTopoActivityLoading] = useState(false)
   const authRequest = useRef(0)
   const topoActivityRequest = useRef(0)
+  const swipeStartX = useRef<number | null>(null)
+  const swipeStartY = useRef<number | null>(null)
 
   const loadTopo = useCallback(async () => {
     if (!supabase) return
@@ -235,8 +237,8 @@ export default function App() {
   const activeSeasonId = seasons.find((season) => season.active)?.id ?? null
   const routeFormRelays = useMemo(() => relaysForZone(relays, filters.zoneId), [filters.zoneId, relays])
   const visibleRoutes = useMemo(
-    () => filterRoutes(routes, filters, activeSeasonId, routeSort),
-    [routes, filters, activeSeasonId, routeSort],
+    () => filterRoutes(routes, filters, activeSeasonId, routeSort, new Set(Object.keys(ownAscents))),
+    [routes, filters, activeSeasonId, ownAscents, routeSort],
   )
   const completedRouteIds = useMemo(() => new Set(Object.keys(ownAscents)), [ownAscents])
   const visibleGradeDistribution = useMemo(
@@ -311,6 +313,31 @@ export default function App() {
     [editRoutes, filters.gradeId, filters.relayId, filters.zoneId, grades, relays, routeSort, visibleRoutes, zones],
   )
   const closeSelectedRoute = useCallback(() => setSelectedRoute(null), [])
+
+  const changeZoneBySwipe = useCallback((direction: 1 | -1) => {
+    const zoneIndex = zones.findIndex((zone) => zone.id === filters.zoneId)
+    const nextIndex = zoneIndex + direction
+    if (nextIndex < -1 || nextIndex >= zones.length) return
+    const zoneId = nextIndex === -1 ? '' : zones[nextIndex].id
+    setFilters((current) => ({ ...current, zoneId, relayId: '' }))
+  }, [filters.zoneId, zones])
+
+  const onRoutesTouchStart = useCallback((event: TouchEvent<HTMLDivElement>) => {
+    const touch = event.touches[0]
+    swipeStartX.current = touch?.clientX ?? null
+    swipeStartY.current = touch?.clientY ?? null
+  }, [])
+
+  const onRoutesTouchEnd = useCallback((event: TouchEvent<HTMLDivElement>) => {
+    const touch = event.changedTouches[0]
+    if (!touch || swipeStartX.current === null || swipeStartY.current === null) return
+    const horizontalDistance = touch.clientX - swipeStartX.current
+    const verticalDistance = touch.clientY - swipeStartY.current
+    swipeStartX.current = null
+    swipeStartY.current = null
+    if (Math.abs(horizontalDistance) < 60 || Math.abs(horizontalDistance) <= Math.abs(verticalDistance)) return
+    changeZoneBySwipe(horizontalDistance < 0 ? 1 : -1)
+  }, [changeZoneBySwipe])
 
   useEffect(() => {
     if (authLoading || !isAdmin) {
@@ -527,6 +554,13 @@ export default function App() {
               label="Afficher les ½ voies"
               onChange={(showHalfRoutes) => setFilters((current) => ({ ...current, showHalfRoutes }))}
             />
+            {user && !authLoading && profileStatus === 'exists' && (
+              <NeoSwitch
+                checked={filters.showOnlyUncompleted}
+                label="Afficher seulement les voies non enchaînées"
+                onChange={(showOnlyUncompleted) => setFilters((current) => ({ ...current, showOnlyUncompleted }))}
+              />
+            )}
             <div className="sort-switch">
               <span className="sort-switch__label">Classer par</span>
               <div className="sort-switch__control">
@@ -690,7 +724,13 @@ export default function App() {
           ) : visibleRoutes.length === 0 && !editRoutes ? (
             <p className="empty-state">Aucune voie ne correspond à ces filtres.</p>
           ) : (
-            <div className="zone-groups">
+            <>
+              <nav className="mobile-zone-pager" aria-label="Navigation entre les zones">
+                <button type="button" onClick={() => changeZoneBySwipe(-1)} disabled={!filters.zoneId}>Précédente</button>
+                <p aria-live="polite">{filters.zoneId ? zones.find((zone) => zone.id === filters.zoneId)?.name : 'Toutes les zones'}</p>
+                <button type="button" onClick={() => changeZoneBySwipe(1)} disabled={Boolean(filters.zoneId && filters.zoneId === zones.at(-1)?.id)}>Suivante</button>
+              </nav>
+              <div className="zone-groups" onTouchStart={onRoutesTouchStart} onTouchEnd={onRoutesTouchEnd}>
               {routesByZone.map(({ zone, groups, routeCount }) => (
                 <section className="zone-group" key={zone.id} aria-labelledby={`zone-${zone.id}`}>
                   <div className="zone-heading">
@@ -746,7 +786,8 @@ export default function App() {
                   </div>
                 </section>
               ))}
-            </div>
+              </div>
+            </>
           )}
         </section>
       </main>

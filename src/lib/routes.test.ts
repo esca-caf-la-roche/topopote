@@ -81,6 +81,12 @@ describe('filterRoutes', () => {
     ).toEqual(['hard'])
   })
 
+  it('can show only routes that have not been completed', () => {
+    expect(
+      filterRoutes(routes, { ...emptyFilters, showOnlyUncompleted: true }, 'summer', 'relay', new Set(['hard'])).map(({ id }) => id),
+    ).toEqual(['easy'])
+  })
+
   it('sorts by relay, then by grade by default', () => {
     expect(filterRoutes(routes, emptyFilters, 'summer').map(({ id }) => id)).toEqual(['easy', 'hard'])
   })

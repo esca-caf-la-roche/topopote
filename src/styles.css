@@ -109,6 +109,7 @@ input[type='color'] { padding: 3px; }
 .section-heading__actions { display: flex; align-items: center; gap: 14px; }
 .count { display: grid; place-items: center; width: 56px; height: 56px; border-radius: 50%; border: var(--border); background: var(--blue); font-size: 1.4rem; font-weight: 900; }
 .zone-groups { display: flex; flex-direction: column; gap: 42px; }
+.mobile-zone-pager { display: none; }
 .zone-group { padding: 20px; border: var(--border); background: #ffd8f6; box-shadow: var(--shadow); }
 .zone-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
 .zone-heading h3 { margin: 0; font-size: clamp(1.25rem, 3vw, 1.8rem); }
@@ -622,6 +623,11 @@ input[type='color'] { padding: 3px; }
   .color-filter__menu { width: 100%; max-width: none; }
   .route-grid, .admin-route-list, .reference-editors, .grade-stats__difficulty-grid, .grade-stats__zone-grid { grid-template-columns: 1fr; }
   .zone-group { padding: 14px; }
+  .zone-groups { touch-action: pan-y; }
+  .mobile-zone-pager { display: grid; grid-template-columns: 1fr minmax(0, 1.5fr) 1fr; align-items: center; gap: 8px; margin-bottom: 16px; padding: 10px; border: var(--border); background: var(--yellow); box-shadow: 3px 3px 0 var(--ink); }
+  .mobile-zone-pager p { margin: 0; text-align: center; font-weight: 900; }
+  .mobile-zone-pager button { min-height: 40px; padding: 6px; border: 2px solid var(--ink); background: var(--paper); font: inherit; font-weight: 800; }
+  .mobile-zone-pager button:disabled { cursor: not-allowed; opacity: .5; }
   .route-card__content, .route-card__open { grid-template-columns: 22px minmax(0, 1fr) 54px auto; gap: 7px; padding: 12px; }
   .route-card__open--with-add { padding-right: 66px; }
   .grade { min-width: 54px; padding: 9px 5px; }

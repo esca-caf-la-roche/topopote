@@ -53,6 +53,7 @@ export type RouteFilters = {
   gradeId: string
   difficulty: string
   showHalfRoutes: boolean
+  showOnlyUncompleted: boolean
 }
 
 export type AscentStyle = 'a_vue' | 'flash' | 'apres_travail' | 'moulinette'
