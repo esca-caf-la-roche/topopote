@@ -45,7 +45,7 @@ function rpcResult(name: string) {
 }
 
 function renderArea() {
-  return render(<FriendsArea user={user} isAdmin={false} isOpener={false} canAccessTraining={false} authLoading={false} onSignOut={async () => undefined} />)
+  return render(<FriendsArea user={user} isAdmin={false} isOpener={false} authLoading={false} onSignOut={async () => undefined} />)
 }
 
 beforeEach(() => {

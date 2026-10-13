@@ -2,9 +2,9 @@ import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { gradeFeelingLabels } from './lib/routeAscents'
 import { styleLabels } from './lib/scoring'
-import { allowedAscentStyles } from './lib/training'
+import { allowedAscentStyles } from './lib/ascentStyles'
 import { supabase } from './lib/supabase'
-import type { AscentStyle, GradeFeeling, Route, RouteAscentPrefill, RouteAscentSummary } from './types'
+import type { AscentStyle, GradeFeeling, Route, RouteAscentSummary } from './types'
 
 type Feedback = { kind: 'error' | 'success'; text: string } | null
 
@@ -27,7 +27,6 @@ export default function RouteAscentsModal({
   route,
   mode,
   ownStyle,
-  prefill,
   hasProfile,
   sharesActivity,
   onClose,
@@ -37,7 +36,6 @@ export default function RouteAscentsModal({
   route: Route
   mode: 'details' | 'add'
   ownStyle?: AscentStyle
-  prefill?: RouteAscentPrefill
   hasProfile: boolean
   sharesActivity: boolean
   onClose: () => void
@@ -141,7 +139,6 @@ export default function RouteAscentsModal({
           <RouteAscentForm
             route={route}
             sharesActivity={sharesActivity}
-            prefill={prefill}
             onSaved={async (ascentId) => {
               await onAscentCreated(ascentId)
               await loadReviews()
@@ -169,16 +166,15 @@ export default function RouteAscentsModal({
   )
 }
 
-function RouteAscentForm({ route, sharesActivity, prefill, onSaved, onFeedback }: {
+function RouteAscentForm({ route, sharesActivity, onSaved, onFeedback }: {
   route: Route
   sharesActivity: boolean
-  prefill?: RouteAscentPrefill
   onSaved: (ascentId: string) => Promise<void>
   onFeedback: (feedback: Feedback) => void
 }) {
-  const [climbedAt, setClimbedAt] = useState(prefill?.climbedAt ?? localDate)
-  const [style, setStyle] = useState<AscentStyle>(prefill?.style ?? 'a_vue')
-  const [attempts, setAttempts] = useState(prefill?.attempts ?? 1)
+  const [climbedAt, setClimbedAt] = useState(localDate)
+  const [style, setStyle] = useState<AscentStyle>('a_vue')
+  const [attempts, setAttempts] = useState(1)
   const [rating, setRating] = useState(0)
   const [feeling, setFeeling] = useState<GradeFeeling>('conforme')
   const [comment, setComment] = useState('')
