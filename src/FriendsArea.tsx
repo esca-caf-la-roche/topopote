@@ -120,11 +120,10 @@ function useModalFocus(onClose: () => void) {
   return dialogRef
 }
 
-export default function FriendsArea({ user, isAdmin, isOpener, canAccessTraining, authLoading, onSignOut }: {
+export default function FriendsArea({ user, isAdmin, isOpener, authLoading, onSignOut }: {
   user: User | null
   isAdmin: boolean
   isOpener: boolean
-  canAccessTraining: boolean
   authLoading: boolean
   onSignOut: () => Promise<void>
 }) {
@@ -243,7 +242,7 @@ export default function FriendsArea({ user, isAdmin, isOpener, canAccessTraining
 
   return (
     <div className="site-shell">
-      <PrimaryNav page="potes" authenticated={Boolean(user)} isAdmin={isAdmin} isOpener={isOpener} canAccessFriends={sharesProfile} canAccessTraining={canAccessTraining} loading={authLoading} onSignOut={onSignOut} />
+      <PrimaryNav page="potes" authenticated={Boolean(user)} isAdmin={isAdmin} isOpener={isOpener} canAccessFriends={sharesProfile} loading={authLoading} onSignOut={onSignOut} />
       <header className="hero hero--potes">
         <div className="hero__content">
           <p className="eyebrow">Topopote · la cordée</p>

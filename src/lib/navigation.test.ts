@@ -1,5 +1,19 @@
 import { describe, expect, it } from 'vitest'
-import { navigationItems } from './navigation'
+import { navigationItems, pageFromHash } from './navigation'
+
+describe('pageFromHash', () => {
+  it('replie l’ancien lien entraînement et les destinations inconnues sur le topo', () => {
+    expect(pageFromHash('#entrainement')).toBe('')
+    expect(pageFromHash('#inconnue')).toBe('')
+    expect(pageFromHash('')).toBe('')
+  })
+
+  it('conserve les destinations existantes', () => {
+    for (const page of ['carnet', 'classement', 'potes', 'ouvreurs', 'admin']) {
+      expect(pageFromHash(`#${page}`)).toBe(page)
+    }
+  })
+})
 
 describe('navigationItems', () => {
   it('limite la navigation publique à la connexion', () => {
@@ -18,9 +32,12 @@ describe('navigationItems', () => {
     expect(navigationItems(true, false, false, true)).toContainEqual({ page: 'potes', label: 'Potes' })
   })
 
-  it('affiche Entraînement seulement avec le booléen privé Supabase', () => {
-    expect(navigationItems(true, false, false, false, true)).toContainEqual({ page: 'entrainement', label: 'Entraînement' })
-    expect(navigationItems(true, false, false, false, false)).not.toContainEqual({ page: 'entrainement', label: 'Entraînement' })
+  it('ne propose plus Entraînement, quel que soit le rôle', () => {
+    for (const isAdmin of [false, true]) {
+      for (const isOpener of [false, true]) {
+        expect(navigationItems(true, isAdmin, isOpener, true).map((item) => item.page)).not.toContain('entrainement')
+      }
+    }
   })
 
   it('ajoute les retours des voies au rôle ouvreur', () => {

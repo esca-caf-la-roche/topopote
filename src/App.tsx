@@ -7,8 +7,8 @@ import ClimberArea from './ClimberArea'
 import FriendsArea from './FriendsArea'
 import OpenerFeedbackPage from './OpenerFeedbackPage'
 import PrimaryNav from './PrimaryNav'
+import { pageFromHash } from './lib/navigation'
 import RouteAscentsModal from './RouteAscentsModal'
-import TrainingArea from './TrainingArea'
 import { resolveAuthenticatedRoles } from './lib/authRoles'
 import { routeAscentBackgrounds } from './lib/routeAscents'
 import { styleLabels } from './lib/scoring'
@@ -49,7 +49,7 @@ export default function App() {
   const [isAdmin, setIsAdmin] = useState(false)
   const [isOpener, setIsOpener] = useState(false)
   const [authLoading, setAuthLoading] = useState(isSupabaseConfigured)
-  const [page, setPage] = useState(() => window.location.hash.replace('#', ''))
+  const [page, setPage] = useState(() => pageFromHash(window.location.hash))
   const [routeSort, setRouteSort] = useState<RouteSort>('relay')
   const [editRoutes, setEditRoutes] = useState(false)
   const [routeDraft, setRouteDraft] = useState<{ relayId?: string; gradeId?: string; colorId?: string } | null>(null)
@@ -60,7 +60,6 @@ export default function App() {
   const [hasClimberProfile, setHasClimberProfile] = useState(false)
   const [profileStatus, setProfileStatus] = useState<'unknown' | 'loading' | 'exists' | 'missing' | 'error'>('unknown')
   const [sharesActivity, setSharesActivity] = useState(false)
-  const [hasTrainingAccess, setHasTrainingAccess] = useState(false)
   const [topoActivityLoading, setTopoActivityLoading] = useState(false)
   const authRequest = useRef(0)
   const topoActivityRequest = useRef(0)
@@ -192,16 +191,14 @@ export default function App() {
       setOwnAscents({})
       setHasClimberProfile(false)
       setSharesActivity(false)
-      setHasTrainingAccess(false)
       setProfileStatus('unknown')
       setTopoActivityLoading(false)
       return
     }
     setTopoActivityLoading(true)
     setProfileStatus('loading')
-    setHasTrainingAccess(false)
     const [profileResult, ascentsResult] = await Promise.all([
-      supabase.from('profils').select('user_id, partage_activite, acces_entrainement').eq('user_id', user.id).maybeSingle(),
+      supabase.from('profils').select('user_id, partage_activite').eq('user_id', user.id).maybeSingle(),
       supabase.from('enchainements').select('voie_id, style').eq('user_id', user.id),
     ])
     if (requestId !== topoActivityRequest.current) return
@@ -215,7 +212,6 @@ export default function App() {
     setHasClimberProfile(Boolean(profileResult.data))
     setProfileStatus(profileResult.data ? 'exists' : 'missing')
     setSharesActivity(profileResult.data?.partage_activite ?? false)
-    setHasTrainingAccess(profileResult.data?.acces_entrainement ?? false)
     setOwnAscents(Object.fromEntries((ascentsResult.data ?? []).map((row) => [row.voie_id, row.style as AscentStyle])))
     setTopoActivityLoading(false)
   }, [user])
@@ -229,7 +225,7 @@ export default function App() {
   }, [authLoading, page, profileStatus, user])
 
   useEffect(() => {
-    const updatePage = () => setPage(window.location.hash.replace('#', ''))
+    const updatePage = () => setPage(pageFromHash(window.location.hash))
     window.addEventListener('hashchange', updatePage)
     return () => window.removeEventListener('hashchange', updatePage)
   }, [])
@@ -369,7 +365,6 @@ export default function App() {
         isAdmin={isAdmin}
         isOpener={isOpener}
         canAccessFriends={sharesActivity}
-        canAccessTraining={hasTrainingAccess}
         authLoading={authLoading}
         seasons={seasons}
         zones={zones}
@@ -392,7 +387,6 @@ export default function App() {
         isAdmin={isAdmin}
         isOpener={isOpener}
         canAccessFriends={sharesActivity}
-        canAccessTraining={hasTrainingAccess}
         authLoading={authLoading}
         routes={routes}
         seasons={seasons}
@@ -421,9 +415,6 @@ export default function App() {
     )
   }
 
-  if (page === 'entrainement') {
-    return <TrainingArea user={user} isAdmin={isAdmin} isOpener={isOpener} sharesActivity={sharesActivity} hasTrainingAccess={hasTrainingAccess} authLoading={authLoading} routes={routes} grades={grades} onSignOut={signOut} />
-  }
 
   if (page === 'potes') {
     return (
@@ -432,7 +423,6 @@ export default function App() {
         isAdmin={isAdmin}
         isOpener={isOpener}
         authLoading={authLoading}
-        canAccessTraining={hasTrainingAccess}
         onSignOut={signOut}
       />
     )
@@ -440,7 +430,7 @@ export default function App() {
 
   return (
     <div className="site-shell">
-      <PrimaryNav page="" authenticated={Boolean(user)} isAdmin={isAdmin} isOpener={isOpener} canAccessFriends={sharesActivity} canAccessTraining={hasTrainingAccess} loading={authLoading} onSignOut={signOut} />
+      <PrimaryNav page="" authenticated={Boolean(user)} isAdmin={isAdmin} isOpener={isOpener} canAccessFriends={sharesActivity} loading={authLoading} onSignOut={signOut} />
       <header className="hero">
         <div className="hero__content">
           <h1>TOPOPOTE</h1>
@@ -1051,7 +1041,6 @@ function AdminPage({
   isAdmin,
   isOpener,
   canAccessFriends,
-  canAccessTraining,
   authLoading,
   seasons,
   zones,
@@ -1068,7 +1057,6 @@ function AdminPage({
   isAdmin: boolean
   isOpener: boolean
   canAccessFriends: boolean
-  canAccessTraining: boolean
   authLoading: boolean
   seasons: Season[]
   zones: Zone[]
@@ -1119,7 +1107,7 @@ function AdminPage({
 
   return (
     <div className="site-shell">
-      <PrimaryNav page="admin" authenticated={Boolean(user)} isAdmin={isAdmin} isOpener={isOpener} canAccessFriends={canAccessFriends} canAccessTraining={canAccessTraining} loading={authLoading} onSignOut={onSignOut} />
+      <PrimaryNav page="admin" authenticated={Boolean(user)} isAdmin={isAdmin} isOpener={isOpener} canAccessFriends={canAccessFriends} loading={authLoading} onSignOut={onSignOut} />
       <header className="hero hero--admin">
         <div>
           <p className="eyebrow">Topopote · gestion du mur</p>

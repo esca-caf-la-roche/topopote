@@ -51,22 +51,4 @@ describe('RouteAscentsModal', () => {
     await waitFor(() => expect(screen.getByText('Aucun enchaînement partagé pour cette voie.')).toBeTruthy())
   })
 
-  it('préremplit le premier enchaînement depuis une séance', async () => {
-    render(<RouteAscentsModal
-      route={route}
-      mode="add"
-      prefill={{ climbedAt: '2026-08-18', style: 'apres_travail', attempts: 5 }}
-      hasProfile
-      sharesActivity={false}
-      onClose={() => undefined}
-      onAscentCreated={async () => undefined}
-      onFeedback={() => undefined}
-    />)
-
-    expect((screen.getByLabelText('Date') as HTMLInputElement).value).toBe('2026-08-18')
-    expect((screen.getByLabelText('Nombre d’essais') as HTMLInputElement).value).toBe('5')
-    expect((screen.getByRole('radio', { name: /Après travail/ }) as HTMLInputElement).checked).toBe(true)
-    expect(screen.queryByRole('radio', { name: /À vue/ })).toBeNull()
-    await waitFor(() => expect(screen.getByText('Aucun enchaînement partagé pour cette voie.')).toBeTruthy())
-  })
 })

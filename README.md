@@ -25,7 +25,7 @@ supabase db push --linked --dry-run
 supabase db push
 ```
 
-Le dépôt est déjà lié sur la machine de développement. Le dry-run permet de relire les migrations en attente avant toute application.
+Le dépôt est déjà lié sur la machine de développement. Le dry-run permet de relire les migrations en attente avant toute application. **Sur un projet existant, ne pas appliquer `20261013000000_remove_training.sql` avant la procédure frontend-first ci-dessous.**
 
 Dans **Authentication > Email Templates**, remplacer le contenu des modèles **Confirm signup** et **Magic Link** par celui de `supabase/templates/magic_link.html`. La première connexion d’un pratiquant utilise **Confirm signup**, puis les connexions suivantes utilisent **Magic Link**. La présence de `{{ .Token }}` envoie le code OTP ; ne conserver `{{ .ConfirmationURL }}` dans aucun de ces deux modèles, car il enverrait un lien magique.
 
@@ -62,21 +62,20 @@ Les matrices pgTAP `supabase/tests/database/20260817_climber_logbook_rls.test.sq
 npm.cmd run test:db
 ```
 
-## Carnet privé d’entraînement
+## Retrait de l’entraînement — livraison en deux temps
 
-La page `#entrainement` est réservée aux profils dont `profils.acces_entrainement` est activé manuellement dans Supabase. Ce booléen est protégé par un trigger : un client authentifié ne peut pas se donner lui-même l’accès. Pour l’activer depuis le SQL Editor avec une adresse connue :
+La page, son menu, le suivi des séances/charges/douleurs et le préremplissage depuis les séances sont supprimés. Un ancien lien `#entrainement` se replie sur le topo. Le carnet d’enchaînements, les profils, le classement, Potes et les retours ouvreurs restent disponibles. Les règles de style selon le nombre d’essais restent partagées entre le carnet et le modal du topo.
 
-```sql
-update public.profils
-set acces_entrainement = true
-where user_id = (select id from auth.users where email = 'grimpeur@example.com');
-```
+La migration **destructive** `20261013000000_remove_training.sql` supprime `voies_seance`, `seances_entrainement`, `activites_charge`, leurs objets dédiés et `profils.acces_entrainement`, sans `CASCADE`. Elle efface définitivement les données d’entraînement, pas les enchaînements déjà enregistrés : la FK est `voies_seance.enchainement_id → enchainements.id ON DELETE SET NULL`, et non l’inverse. Les migrations historiques restent intactes.
 
-Une séance concerne le mur ou une falaise extérieure. Chaque ligne conserve la voie, le nombre d’essais de la séance, le statut et le style d’enchaînement. Pour une voie du mur, le premier enchaînement ouvre le modal Topopote avec la date, le style et le cumul des essais préremplis ; l’utilisateur vérifie ensuite les étoiles, le ressenti et le commentaire avant l’enregistrement définitif. Aucun total global d’essais n’est utilisé comme indicateur.
+**Exception obligatoire à la checklist DB-before-front :**
 
-Une séance d’escalade peut être créée dès son début avec les seules informations déjà connues, puis complétée depuis **Modifier ma séance**. Le temps se saisit soit comme une durée en quarts d’heure (`1h00`, `1h15`, `1h30`…), soit avec des horaires. Dans ce second mode, l’heure de début peut être enregistrée seule ; elle est conservée jusqu’à l’ajout de l’heure de fin, qui calcule alors la durée en minutes. La durée, la RPE et la douleur restent facultatives tant qu’elles ne sont pas connues.
+1. Valider puis déployer d’abord ce nouveau frontend, compatible avec l’ancien schéma comme avec le schéma final. Vérifier le SHA publié et tester carnet, topo connecté, classement, Potes et rôles privilégiés.
+2. Conserver temporairement l’ancien schéma pour les anciens onglets/clients encore ouverts. L’ancien `App` et l’ancien `ClimberArea` sélectionnent `acces_entrainement` : retirer la colonne trop tôt bloque leur carnet. Renouveler les clients avant de poursuivre ; un déploiement seul ne recharge pas leurs onglets.
+3. Sauvegarder la base et vérifier la restauration. Sur une copie locale peuplée de l’ancien schéma, relever les lignes et valeurs des profils, enchaînements, topo et suivis ; appliquer seulement la nouvelle migration, comparer intégralement ces données avant/après et retester les permissions. Exporter les données d’entraînement si elles doivent être archivées.
+4. Seulement après validation et renouvellement des clients, autoriser séparément l’application distante de la migration, puis contrôler données conservées, historique des migrations et accès. Aucun automatisme de publication frontend ne doit appliquer ce drop.
 
-La matrice `supabase/tests/database/20260819_private_training_sessions_rls.test.sql` vérifie l’activation administrée du booléen, l’isolation stricte des séances entre comptes, les contrats mur/extérieur et les suppressions en cascade.
+La matrice `supabase/tests/database/20261013_training_removed.test.sql` contrôle les absences et le maintien des tables/RLS/droits utiles ; les matrices carnet et Potes restent exécutées. **Des tests pgTAP sur le schéma final reconstruit ne prouvent pas la préservation des données historiques lors d’une mise à niveau peuplée.** Cette validation reste une étape distincte obligatoire. Aucun retour arrière vers l’ancien frontend après le drop sans restauration de son contrat de base ; les données supprimées nécessitent une sauvegarde.
 
 ## Organiser le topo
 
@@ -108,7 +107,7 @@ Configurer dans les secrets du dépôt :
 
 Puis activer **Settings > Pages > Source: GitHub Actions**. Chaque push sur `main` compile et publie le site.
 
-GitHub Pages ne déploie que le frontend : le workflow teste les migrations sur une base Supabase locale, mais ne modifie jamais le projet hébergé. Pour toute version qui ajoute une migration, respecter cette checklist avant de pousser `main` :
+GitHub Pages ne déploie que le frontend : le workflow teste les migrations sur une base Supabase locale, mais ne modifie jamais le projet hébergé. **La suppression de l’entraînement suit exclusivement la procédure frontend-first ci-dessus.** Pour les autres versions ajoutant une migration dont le frontend dépend, respecter cette checklist avant de pousser `main` :
 
 1. relire les migrations en attente avec `supabase db push --linked --dry-run --skip-vault` ;
 2. appliquer les migrations validées avec `supabase db push --linked --skip-vault` ;
